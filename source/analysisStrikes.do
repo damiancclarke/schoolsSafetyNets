@@ -159,87 +159,6 @@ gen rateVDif  = rateVSecondary-rateVPrimary
 gen rateSADif = rateSASecondary-rateSAPrimary
 gen rateAllDiff = rateAllSecondary-rateAllPrimary
 
-
-/*
-//Agregamos sistema//
-preserve
-local f "https://raw.githubusercontent.com/Daniel-Pailanir/Cuarentenas/master/Cuarentenas.csv"
-import delimited using `f', clear encoding(UTF-8)
-keep comuna nombre
-
-replace nombre = ustrto(ustrnormalize(nombre, "nfd"), "ascii", 2)
-replace nombre = lower(nombre)
-
-replace nombre = "cabo de hornos" if nombre=="cabo de hornos          "
-replace nombre = "calera de tango" if nombre=="calera  de tango"
-replace nombre = "independencia" if nombre=="inpendencia"
-replace nombre = "isla de pascua" if nombre=="isla de  pascua"
-replace nombre = "porvenir" if nombre=="porvenir                "
-replace nombre = "punta arenas" if nombre=="punta arenas            "
-replace nombre = "quinta de tilcoco" if nombre=="quinta de  tilcoco"
-replace nombre = "san jose de maipo" if nombre=="san jose  de maipo"
-replace nombre = "san pedro de la paz" if nombre=="san pedro de  la paz"
-replace nombre = "natales" if nombre=="natales                 "
-
-tempfile dname
-save `dname'
-
-
-import excel using "$DAT/ANEXO_1721.xlsx", clear sheet(Ordenados) first
-reshape long m@, i(comuna) j(time)
-format %tm time
-gen aux = m if comuna=="Total"
-destring aux, replace
-gegen total = min(aux), by(time)
-drop aux
-drop if comuna=="Total"
-
-gen ingresos = m
-replace ingresos = "999" if ingresos=="<10"
-destring ingresos, replace
-replace ingresos = 0 if ingresos==.
-replace ingresos = . if ingresos==999
-
-gegen comunas_parcial = count(total) if ingresos==. , by(time)
-
-ipolate ingresos time, gen(ingresos_ip) by(comuna)
-replace ingresos_ip = 1 if ingresos_ip>=0 & ingresos_ip<=5 & comunas_parcial!=.
-replace ingresos_ip = 8 if ingresos_ip>10 & ingresos_ip!=. & comunas_parcial!=.
-replace ingresos_ip = round(ingresos_ip, 1)-3 if ingresos_ip>5 & ingresos_ip<10 & comunas_parcial!=.
-replace ingresos_ip=1 if ingresos_ip==.
-
-ren comuna nombre
-
-replace nombre = ustrto(ustrnormalize(nombre, "nfd"), "ascii", 2)
-replace nombre = lower(nombre)
-
-replace nombre = "cabo de hornos" if nombre=="cabo de hornos (ex navarino)"
-replace nombre = "hijuela" if nombre=="hijuelas"
-replace nombre = "la calera" if nombre=="calera"
-merge m:1 nombre using `dname', keep(1 3) nogen
-rename time tm
-#delimit ;
-local newcodes 16101 16102 16202 16203 16302 16103 16104 16204 16303 16105
-         16106 16205 16107 16201 16206 16301 16304 16108 16305 16207 16109;
-#delimit cr
-tokenize `newcodes'
-foreach number of numlist 1(1)21 {
-    local oldcode = 8400+`number'
-    dis "Old code is `oldcode'.  New code is `1'"
-
-    replace comuna = `oldcode' if comuna==`1'
-    macro shift
-}
-tempfile system
-save `system'
-restore
-
-merge 1:1 comuna tm using `system', gen(_mergeSystem)
-
-gen rateIngresos = ingresos_ip/populationyoung*100000
-*/
-
-
 *-------------------------------------------------------------------------------
 *-- (2) Descriptives
 *-------------------------------------------------------------------------------
@@ -314,7 +233,6 @@ ytitle("Density", size(medlarge));
 graph export "$GRA/strikeIntensity.pdf", replace
 
 
-exit
 *-------------------------------------------------------------------------------
 *-- (3) Model
 *-------------------------------------------------------------------------------
@@ -327,7 +245,6 @@ replace strikeXduring_sin=0  if tm<tm(2011m1)
 replace strikedXduring_sin=0 if tm<tm(2011m1)
 
 drop if tm>tm(2017m12)
-//replace strikeXduring_sin = 0 if strikeXduring_sin==.
 
 
 reghdfe rateSecondary strikeXduring_all  `conts' `wt', abs(comuna tm) cluster(comuna)
@@ -457,68 +374,3 @@ mlabels(none) collabels(none);
 
 estimates clear
 
-//Missing strikevar is either 2011, 2020, or 2021, or no students
-bys comuna: egen strikevar = mean(strike_sin)
-drop if strikevar==.
-gen timeToStrike = (tm-tm(2011m6))
-
-foreach num of numlist 0(1)12 {
-    gen lead=timeToStrike == -`num'
-    gen lead`num'XIntensity = lead*strikevar
-    
-    gen lag=timeToStrike == `num'
-    gen lag`num'XIntensity = lag*strikevar
-    drop lag lead
-}
-gen lead= timeToStrike<-12
-gen lead13XIntensity = lead*strikevar
-gen lag= timeToStrike>12
-gen lag13XIntensity = lag*strikevar
-
-drop lead0X lead lag
-
-gen rateAll = rateSecondary+rateSASecondary+rateVSecondary
-
-*reghdfe rateSecondary    lead* lag*  `conts' `wt', `opts'
-*reghdfe rateSASecondary  lead* lag*  `conts' `wt', `opts'
-*reghdfe rateVSecondary   lead* lag*  `conts' `wt', `opts'
-#delimit ;
-constraint 1 lead13XIntensity+lead12XIntensity+lead11XIntensity+
-             lead10XIntensity+lead9XIntensity+lead8XIntensity
-             lead7XIntensity+lead6XIntensity+lead5XIntensity
-             lead4XIntensity+lead3XIntensity+lead2XIntensity
-             lead1XIntensity=0;
-#delimit cr
-cnsreg rateAllSecondary  lead* lag* popSecondary `conts' i.comuna i.tm `wt', cluster(comuna) constraints(1)
-gen EST = .
-gen TIME = _n-14 in 1/27
-gen LB = .
-gen UB = .
-foreach num of numlist 1(1)13 {
-    if `num'==2 {
-        replace EST = 0 if TIME==-2
-        replace LB = 0 if TIME==-2
-        replace UB = 0 if TIME==-2
-    }
-    else {
-        replace EST=_b[lead`num'XIntensity] if TIME==-`num'
-        replace LB =_b[lead`num'XIntensity]-1.64*_b[lead`num'XIntensity] if TIME==-`num'
-        replace UB =_b[lead`num'XIntensity]+1.64*_b[lead`num'XIntensity] if TIME==-`num'
-    }
-}
-foreach num of numlist 0(1)13 {
-    replace EST=_b[lag`num'XIntensity] if TIME==`num'
-    replace LB =_b[lag`num'XIntensity]-1.64*_b[lag`num'XIntensity] if TIME==`num'
-    replace UB =_b[lag`num'XIntensity]+1.64*_b[lag`num'XIntensity] if TIME==`num'
-}
-#delimit ;
-twoway rcap LB UB TIME, 
-   || scatter EST TIME, mc(blue%80)
-legend(order(2 "Point Estimate" 1 "90% CI") pos(6) rows(1))
-xlabel(-13 "> 1 year" -12(2)12 13 "> 1 year", angle(55)) yline(0) xline(-0.5)
-xtitle("Time to Strike") ytitle("Rate of Complaints");
-#delimit cr
-graph export "$GRA/strikeEvent_VIF.pdf", replace
-exit
-
-reghdfe rateDif          lead* lag*  `conts' `wt', `opts'

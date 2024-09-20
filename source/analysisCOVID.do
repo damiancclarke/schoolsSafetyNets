@@ -29,6 +29,15 @@ log using "$LOG/analysisCOVID.txt", text replace
 local data SchoolClosure_Final_RR_05082024.dta
 
 use $DAT/`data'
+preserve
+keep comuna year population*
+bys comuna year: gen N=_n
+keep if N==1
+rename comuna com_cod
+save "$DAT/populationYear", replace
+restore
+
+
 
 preserve
 collapse privado vulnerable prioritario [aw=populationyoung], by(week)
@@ -167,42 +176,57 @@ local c "if monday>21556&week<157";
 twoway area VIF_3 monday `c', color(%50) 
        || rarea VIF_3 g2 monday `c', color(%50) 
        || rarea g2 g3 monday `c', color(%60)
-       || line caso monday `c', lc(black) lp(solid)
-ylabel(0(50)250) xlabel(#13, angle(45)) xline(21989 22144, lc(red))
-ytitle("Formal reporting violence") xtitle("")
+       || line caso monday `c', lc(black) lp(solid) lwidth(thick)
+ylabel(0(50)250, labsize(medium)) xlabel(#13, angle(45) labsize(medium)) 
+xline(21989 22144, lc(red)) ytitle("Formal reporting violence", size(medlarge)) 
 legend(order(3 "Psychological" 2 "Minor injuries" 1 "Serious injuries") 
-pos(12) col(4));
+       pos(12) col(4)) xtitle("");
 graph export "$GRA/VIFreport_byClass.pdf", replace;
 
-twoway line casoSA monday if monday>21556 & week<154, xlabel(#13, angle(45)) 
-xtitle("") xline(21989, lc(red)) xline(22144, lc(red)) ylabel(0(25)150)
-ytitle("Formal reporting Sexual Abuse");
+twoway line casoSA monday if monday>21556 & week<154, lwidth(thick)
+xlabel(#13, angle(45) labsize(medium)) 
+xtitle("") xline(21989, lc(red)) xline(22144, lc(red)) 
+ylabel(0(25)150, labsize(medium))
+ytitle("Formal reporting Sexual Abuse", size(medlarge));
 graph export "$GRA/SAbusereport.eps", replace;
 
-twoway line casoV monday if monday>21556 & week<154, xlabel(#13, angle(45)) 
-xtitle("") xline(21989 22144, lc(red)) ytitle("Formal reporting Rape")
-ylabel(0(5)30);
+twoway line casoV monday if monday>21556 & week<154, lwidth(thick)
+xlabel(#13, angle(45) labsize(medium)) 
+xtitle("") xline(21989 22144, lc(red)) 
+ytitle("Formal reporting Rape", size(medlarge))
+ylabel(0(5)30, labsize(medium));
 graph export "$GRA/Rapereport.eps", replace;
 
+gen AllReport = caso+casoSA+casoV;
+twoway line AllReport monday if monday>21556 & week<154, lwidth(thick)
+xlabel(#13, angle(45) labsize(medium)) 
+xtitle("") xline(21989 22144, lc(red)) 
+ytitle("Total Formal reporting", size(medlarge))
+ylabel(0(50)400, labsize(medium));
+graph export "$GRA/Allreport.eps", replace;
 
-twoway (line quarantine monday if monday>21556, yaxis(1) 
-              ytitle("Municipalities under quarantine", axis(1) size(medsmall)))
-	   (line prop_pop monday if monday>21556, yaxis(2) lc(blue)
-              ytitle("Proportion under quarantine", axis(2) size(medsmall) 
-              orientation(rvertical))),
-xlabel(#13, angle(45)) xline(21989 22144, lc(red))
+
+twoway connected quarantine monday if monday>21556, yaxis(1) lwidth(thick)
+       ytitle("Municipalities under quarantine", axis(1) size(medlarge)) ms(Oh)
+||     connected prop_pop monday if monday>21556, yaxis(2) lc(blue) lwidth(thick)
+        ytitle("Proportion under quarantine", axis(2) size(medlarge) 
+        orientation(rvertical)) ms(Sh) mc(blue)
+xlabel(#13, angle(45) labsize(medium))  ylabel(, labsize(medium))
+ylabel(, labsize(medium) axis(2)) xline(21989 22144, lc(red))
 legend(order(1 "Municipalities" 2 "Population") col(2) pos(11) ring(0) colg(1pt) 
 bm(zero) keyg(.8pt) size(small) region(lcolor(gs8))) xtitle("");
 graph export "$GRA/quarantine.eps", replace;
 
-twoway (line prop_schools_i monday if monday<21990&week>0)
-       (line prop_schools_i monday if monday>=21990&monday<22265&week>0, 
-        lp(solid) lc(black))
-	   (line prop_schools_i monday if monday>=22265&monday<=22343&week>0, 
-         lp(shortdash) lc(black))
-       (line prop_schools_i monday if monday>=22344&week>0, lp(solid) lc(black)), 
-ylabel(, format(%9.1f)) xlabel(#13, angle(45) format(%td)) xline(21989, lc(red)) 
-xline(22144, lc(red)) xtitle("") ytitle("Proportion of schools") legend(off);
+twoway line prop_schools_i monday if monday<21990&week>0, lwidth(thick)
+||     line prop_schools_i monday if monday>=21990&monday<22265&week>0, 
+        lp(solid) lc(black) lwidth(thick)
+||	   line prop_schools_i monday if monday>=22265&monday<=22343&week>0, 
+         lp(shortdash) lc(black) lwidth(thick)
+||     line prop_schools_i monday if monday>=22344&week>0, lp(solid) lc(black)
+lwidth(thick) ylabel(, format(%9.1f) labsize(medium)) 
+xlabel(#13, angle(45) format(%td) labsize(medium)) xline(21989, lc(red)) 
+xline(22144, lc(red)) xtitle("") ytitle("Proportion of schools open", size(medlarge)) 
+legend(off);
 graph export "$GRA/prop_school.eps", replace;
 #delimit cr
 
@@ -252,18 +276,19 @@ replace Deaths=0 in 660
 sort t
 
 #delimit ;
-twoway (line NewTotalCases t, yaxis(1) ytitle("Total Cases", 
-        axis(1) size(medsmall)))
-       (line Deaths t, yaxis(2) lc(blue) ytitle("Total Deaths", 
-        axis(2) size(medsmall) orientation(rvertical))),
-xlabel(#13, angle(45)) xline(21989, lc(red)) xline(22144, lc(red))
-legend(order(1 "Total Cases" 2 "Total Deaths") pos(1) ring(0) col(2) 
-colg(1pt) bm(zero) keyg(.8pt) size(small) region(lcolor(gs8))) xtitle("");
+twoway line NewTotalCases t, yaxis(1) lwidth(thick) 
+       ytitle("Total Cases",  axis(1) size(medlarge)) 
+||     line Deaths t, yaxis(2) lc(blue)  lwidth(medthick)
+       ytitle("Total Deaths", axis(2) size(medlarge) orientation(rvertical)) 
+  xlabel(#13, angle(45) labsize(medium)) ylabel(, format(%9.0gc) labsize(medium))
+  ylabel(, labsize(medium) axis(2)) xline(21989, lc(red)) xline(22144, lc(red))  
+  legend(order(1 "Total Cases" 2 "Total Deaths") pos(1) ring(0) col(2) 
+  colg(1pt) bm(zero) keyg(.8pt) size(small) region(lcolor(gs8))) xtitle("");
 graph export "$GRA/COVID.eps", replace;
 #delimit cr
 restore
 
-
+exit
 *-------------------------------------------------------------------------------
 *--- (2) Fixed effect tables
 *-------------------------------------------------------------------------------
