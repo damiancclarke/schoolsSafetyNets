@@ -36,6 +36,50 @@ format %tm fecha
 gen rateInatt_all = no_asiste_med/(no_asiste_med+asiste_med)
 gen rateInatt_sin = no_asiste_med_srep/(no_asiste_med_srep+asiste_med_srep)
 
+
+preserve
+keep if year<2015
+drop if year==2012
+collapse (sum) asiste_bas asiste_med, by(date)
+gen doy=doy(date)
+gen yr2011=year(date)==2011
+//drop weekends
+drop if asiste_med<150000
+collapse asiste_* , by(doy yr2011)
+
+local l1 lwidth(thick) lcolor(red%60)  mc(red%60)  ms(Oh)
+local l2 lwidth(thick) lcolor(blue%60) mc(blue%60) ms(Sh)
+drop if doy>=258&doy<=265
+drop if doy<70
+drop if doy>365
+replace asiste_med=asiste_med/1000
+replace asiste_bas=asiste_bas/1000
+#delimit ;
+twoway connected asiste_med doy if yr2011 ==1, `l1'
+||     connected asiste_med doy if yr2011 ==0, `l2'
+xline(152, lcolor(gs5%80)) xlabel(60(30)360, labsize(medium))
+ylabel(, format(%12.0gc) labsize(medium)) 
+xtitle("Day of the year", size(medlarge))
+ytitle("Secondary School Attendance (1000s)", size(medlarge))
+legend(order(1 "Attendance 2011" 2 "Attendance 2013-2014")
+pos(1) ring(0)) ;
+#delimit cr
+graph export "$GRA/attendanceTrendsStrikes.pdf", replace
+
+#delimit ;
+twoway connected asiste_bas doy if yr2011 ==1, `l1'
+||     connected asiste_bas doy if yr2011 ==0, `l2'
+xline(152, lcolor(gs5%80)) xlabel(60(30)360, labsize(medium))
+ylabel(, format(%12.0gc) labsize(medium)) 
+xtitle("Day of the year", size(medlarge))
+ytitle("Primary School Attendance (1000s)", size(medlarge))
+legend(order(1 "Attendance 2011" 2 "Attendance 2013-2014")
+pos(1) ring(0)) ;
+#delimit cr
+graph export "$GRA/attendanceTrendsStrikes_Primary.pdf", replace
+restore
+exit
+
 collapse (mean) rateInatt*, by(com_cod fecha month year)
 
 tab year
@@ -194,7 +238,7 @@ merge 1:1 comuna tm using `system', gen(_mergeSystem)
 
 gen rateIngresos = ingresos_ip/populationyoung*100000
 */
-a
+
 
 *-------------------------------------------------------------------------------
 *-- (2) Descriptives
@@ -239,7 +283,8 @@ collapse strikeXduring_all rateSecon [aw=populationyoung], by(tm highStrike)
 twoway line rateS tm if tm<=tm(2013m12)&highStrike==0, lwidth(thick) lcolor(blue%70)
     || line rateS tm if tm<=tm(2013m12)&highStrike==1, lwidth(thick) lcolor(red%70)
 legend(order(1 "Low Strike Exposure" 2 "High Strike Exposure") pos(1) ring(0))
-ytitle("Rate of Criminal Complaints")
+ytitle("Rate of Criminal Complaints", size(medlarge)) xtitle("Month", size(medlarge))
+xlabel(, labsize(medium)) ylabel(, labsize(medium)) 
 xline(617, lcolor(red)) xline(623, lcolor(red))
 text(68 620 "Strike") text(66 620 "Period");
 #delimit cr
@@ -247,25 +292,29 @@ graph export "$GRA/strikeDescriptive.pdf", replace
 drop strikeX
 reshape wide rateS, i(tm) j(highStrike)
 gen diff=rateSecondary1-rateSecondary0
+
 #delimit ;
 twoway line diff tm if tm<=tm(2013m12), lwidth(thick) lcolor(blue%64)
-ytitle("{&Delta} Reports (High-Low Strike Exposure)")
-yline(0, lcolor(black%30) lpattern(dash))
-xline(617, lcolor(red))
-xline(623, lcolor(red))
+ytitle("{&Delta} Reports (High-Low Strike Exposure)", size(medlarge))
+xtitle("Month", size(medlarge)) xlabel(, labsize(medium)) 
+ylabel(, labsize(medium)) yline(0, lcolor(black%30) lpattern(dash))
+xline(617, lcolor(red)) xline(623, lcolor(red))
 text(19 620 "Strike") text(17.5 620 "Period");
 #delimit cr
 graph export "$GRA/strikeDescriptiveDiff.pdf", replace
 restore
 
 #delimit ;
-hist strike_sin, scheme(plotplainblind) color(red%70) xlabel(, format(%04.2f))
-xtitle("Strike Intensity");
+hist strike_sin, scheme(plotplainblind) color(red%70) 
+xlabel(, format(%04.2f) labsize(medium))
+ylabel(, labsize(medium))
+xtitle("Strike Intensity", size(medlarge))
+ytitle("Density", size(medlarge));
 #delimit cr
 graph export "$GRA/strikeIntensity.pdf", replace
 
 
-
+exit
 *-------------------------------------------------------------------------------
 *-- (3) Model
 *-------------------------------------------------------------------------------
