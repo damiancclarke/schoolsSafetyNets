@@ -63,10 +63,9 @@ tw line c3 d, lw(1pt) || line c2 d, lw(1pt) || line c1 d, lw(1pt) || line c0 d, 
 graph export "$OUT/countries_all.eps", replace;
 #delimit cr
 
-exit
 
 *-------------------------------------------------------------------------------
-*--- (1) Attendance by age
+*--- (2) Attendance by age
 *-------------------------------------------------------------------------------
 use "$DAT/CASEN/Casen 2017.dta"
 keep if edad<20
@@ -99,7 +98,7 @@ graph export "$OUT/attendance_5_10.eps", replace
 
 
 *-------------------------------------------------------------------------------
-*--- (2) Opening and development internationally
+*--- (3) Opening and development internationally
 *-------------------------------------------------------------------------------
 clear all
 import excel using "$DAT/international/UNESCO_school_closures_database.xlsx", firstrow
@@ -128,10 +127,10 @@ scheme(stcolor);
 graph export $OUT/schoolCloseGDP.eps, replace;
 #delimit cr
 
-exit
 *-------------------------------------------------------------------------------
-*--- (1) Attendance under-reporting tests
+*--- (4) Attendance under-reporting tests: currently commented out as data v large
 *-------------------------------------------------------------------------------
+/*
 foreach month in Octubre Noviembre {
     import delimited "$DAT/Asistencia/Asistencia_`month'_2018.csv", encoding(ISO-8859-1) clear
     keep if cod_ense==110
@@ -239,58 +238,6 @@ tw scatter asistencia_simceleng nalu_lect4b_rbd
 || line asistencia_simceleng asistencia_simceleng, sort;
 graph export "$OUT/attendance_2018_simce4lang.eps", replace;
 #delimit cr
-
+*/
     
-
-exit
-
-*-------------------------------------------------------------------------------
-*--- (1) set data to month by crime 
-*-------------------------------------------------------------------------------
-insheet using "$DAT/crime/crimes.csv", delim(";")
-sort delitos
-gen n=_n
-list delitos n
-gen crimeClass = 1 if  n==13|n==15|n==16|n==17|n==26
-replace crimeClass = 2 if n==22|n==23|n==4
-replace crimeClass = 3 if n==14|n==21|n==24|n==25|n==19|n==3
-replace crimeClass = 4 if n==2
-replace crimeClass = 5 if n==1|n==7|n==8|n==10|n==20
-replace crimeClass = 6 if n==9|n==12|n==5|n==18|n==11
-replace crimeClass = 7 if n==27
-
-collapse (sum) m*, by(crimeClass)
-//no 11, 6
-
-
-
-
-reshape long m, i(crimeClas) j(time)
-gen month = mod(time,12)
-replace month = 12 if month==0
-bys crimeClass: gen year = floor((_n-1)/12)+2016
-gen monthly_date = mofd(mdy(month, 1, year))
-format monthly_date %tmMon_CCYY
-
-
-//1) Delitos contra personas: Homicidios, lesiones (graves, menos graves, etc), delitos sexuales
-//2) Delitos con la propiedad violentos: robberies, robo por sorpresa
-//3) delitos contra la propiedad no violentos: hurto, receptación, robo en lugar habitado y no habitado, robo de vehículos, otros robos con fuerza enlas cosas
-//4) Delitos de drogas
-//5) Delitos de armas
-//6) Incivilidades: consusmo en vía pública, delitos de orden público, etc.
-
-local j=1
-foreach l of numlist 1(1)7 {
-    *dis "`l' is `j'"
-    #delimit ;
-    twoway connected m monthly_date if crimeClass==`l', lcolor(purple%60)
-    ytitle("Number of Reports", size(large))  xtitle("Date", size(large))
-    xline(722, lcolor(red)) mcolor(purple%90) lwidth(thick)
-    xlabel(, labsize(medlarge)) ylabel(, labsize(medlarge));
-    #delimit cr
-    graph export "$OUT/crimeClass_`l'.pdf", replace
-    local ++j
-}
-
-
+log close
