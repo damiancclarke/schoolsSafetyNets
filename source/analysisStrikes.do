@@ -316,6 +316,28 @@ mlabels(none) collabels(none);
 #delimit cr
 estimates clear
 
+
+//Summary statistics
+gen strikeIntense = strike_sin
+replace strikeIntense = 0 if strike_sin==.
+
+lab var rateAllSecondary "All Violence"
+lab var rateSecondary    "Intrafamily Violence"
+lab var rateSASecondary  "Sexual Abuse"
+lab var rateVSecondary   "Rape"
+lab var strikeperiod     "Strike Period"
+lab var strikeIntense    "Strike Intensity"
+lab var popSecondary     "Population of Secondary Students"
+
+#delimit ;
+local PA rateAllS rateSec rateSASe rateVS strikeperiod strikeIntense popSecondary;
+estpost sum `PA' if e(sample)==1;
+estout using "$OUT/summaryStrikes.tex", replace label  mlabels(,none) 
+collabels(,none) cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") 
+style(tex);
+#delimit cr
+
+
 local wt    [aw=popP]
 eststo: reghdfe rateAllPrimary strikeXduring_sin  `conts' `wt', `opts'
 eststo: reghdfe ratePrimary    strikeXduring_sin  `conts' `wt', `opts'
