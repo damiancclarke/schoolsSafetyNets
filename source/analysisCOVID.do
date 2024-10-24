@@ -800,7 +800,12 @@ estimates clear
 *-------------------------------------------------------------------------------
 *--- (4) Summary statistics
 *-------------------------------------------------------------------------------
-
+lab var rate      "Intrafamily Violence"
+lab var rateVIF3  "\ \ \ Physical Violence (serious)"
+lab var rateVIF2  "\ \ \ Physical Violence (moderate) "
+lab var rateVIF1  "\ \ \ Psychological Violence"
+lab var rateSA    "Sexual Abuse"
+lab var rateV     "Rape"
 
 #delimit ;
 local PA rate rateVIF3 rateVIF2 rateVIF1 rateSA rateV;
@@ -808,13 +813,22 @@ estpost sum `PA' if year>=2019;
 estout using "$OUT/summaryPA.tex", replace label  mlabels(,none) collabels(,none)
 cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") style(tex);
 
-local PB SchoolClose2 SchoolOpen_i prop_schools_i Attendance1 Attendance2
-Attendance3 Attendance4 attendAll;
+lab var attendAll   "Baseline Attendance";
+lab var baseSupport "Baseline Educational Specialists";
+lab var privado     "Composition of Students (private)";
+lab var vulnerable  "Composition of Students (municipal)";
+lab var prioritario "Composition of Students (priority)";
+
+local PB SchoolClose2 SchoolOpen_i prop_schools_i attendAll baseSupport privado vulnerable prioritario;
 estpost sum `PB' if year>=2019;
 estout using "$OUT/summaryPB.tex", replace label mlabels(,none) collabels(,none)
 cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") style(tex);
 
-local PC quarantine caseRate pcr positivity populationyoung;
+lab var p_comunal_h "Proportion of adults in formal employment";
+lab var vaccines    "COVID-19 vaccination rate";
+
+
+local PC quarantine caseRate pcr positivity vaccines p_comunal_h populationyoung;
 estpost sum `PC' if year>=2019;
 estout using "$OUT/summaryPC.tex", replace label mlabels(,none) collabels(,none)
 cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") style(tex);
@@ -989,58 +1003,10 @@ foreach v of local varr {
              xtitle(""));
     graph export "$GRA/eventdd_mobility_`v'.eps", replace;
     #delimit cr
-
-    //Comparison event study
-    gen BETAv = .
-    gen LBv   = .
-    gen UBv   = .
-    local j=1
-    foreach l of numlist `leads' {
-        qui replace BETAv = _b[lead`l'] in `j'
-        qui replace LBv   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-        qui replace UBv   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-        local ++j
-    }
-    qui replace BETAv = 0 in `j'
-    qui replace LBv   = 0 in `j'
-    qui replace UBv   = 0 in `j'
-    local ++j
-    foreach l of numlist 0(1)20 {
-        qui replace BETAv = _b[lag`l'] in `j'
-        qui replace LBv   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-        qui replace UBv   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-        local ++j
-    }
-    #delimit ;
-    twoway rarea LB UB TIME, color(gs10%50) 
-    || scatter BETA TIME, mc(red%70)
-    || rarea LBq UBq TIME, color(gs10%50) yaxis(2) ylabel(-1(0)1, axis(2))
-    || scatter BETAq TIME, mc(purple%70) yaxis(2) 
-    || rcap LBv UBv TIME, color(black%50)
-    || scatter BETAv TIME, ms(Dh) mc(midblue) xline(0, lcolor(black))
-    yline(0, lcolor(black))
-    ylabel(-4(1)4, labsize(medium)) ytitle("Rate per 100,000", size(medlarge))
-    ytitle("Lockdown", axis(2) size(medlarge))
-    legend(order(5 "Criminal Complaints" 6 "95% CI" 1 "COVID cases" 3 "Lockdown"
-                 2 "95% CI") pos(6) rows(1));
-    #delimit cr
-    graph export "$GRA/eventJoint_close_X_`v'.pdf", replace
-    #delimit ;
-    twoway rarea LB UB TIME, color(gs10%50) 
-    || scatter BETA TIME, mc(red%70)
-    || rcap LBv UBv TIME, color(black%50)
-    || scatter BETAv TIME, ms(Dh) mc(midblue) 
-    ylabel(`yl') ytitle("Rate per 100,000")
-    xline(0, lcolor(black)) yline(0, lcolor(black))
-    legend(order(4 "Criminal Complaints" 3 "95% CI" 2 "COVID cases" 1 "95% CI")
-           pos(6) rows(1));
-    #delimit cr
-    graph export "$GRA/eventJoint_close_X_`v'.pdf", replace
-    drop BETAv UBv LBv 
 }
 
 drop LB UB TIME BETA LBq UBq BETAq lag* lead*
-/*
+
 gen monthsToClose = month-tm(2020m3)
 foreach v of varlist rate rateSA rateV {
     if `"`v'"'=="rate" {
@@ -1068,7 +1034,6 @@ foreach v of varlist rate rateSA rateV {
     graph export "$GRA/eventdd_month_`v'.eps", replace;
     #delimit cr
 }
-*/
 
 
 *-----------------------------------------------------------------------------
@@ -1618,424 +1583,4 @@ foreach var of varlist rate rateSA rateV {
 }
 */
 
-*-----------------------------------------------------------------------------
-*-- (7a) Event Studies by month -- closure
-*-------------------------------------------------------------------------------
-use $DAT/`data', clear
-
-gen monthsToClose = month-tm(2020m3)
-exit
-
-
-local controls caseRate pcr positivity quarantine movilidad2 p_comunal_m p_comunal_h
-local grp by(month comuna) 
-collapse (first) populationyoung (mean) `controls' (sum) caso casoV casoSA, `grp'
-
-
-xtset comuna month
-gen timeToClose = month-tm(2020m3)
-gen mes = mod(month,12)+1
-gen rate   = caso  /populationyoung*100000
-gen rateV  = casoV /populationyoung*100000
-gen rateSA = casoSA/populationyoung*100000
-
-#delimit ;
-eventdd caso i.mes i.comuna  [aw=populationyoung],
-timevar(timeToClose) cluster(comuna) lags(10) leads(14) accum
-endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-ci(rarea, color(gs10%50))
-graph_op(legend(off) xtitle("Calendar Month", size(medlarge))
-         ytitle("Criminal Complaints per 100,000", size(medlarge))
-         ylabel(#6,format(%9.0f) labsize(medlarge))
-         xlabel(-14 "{&le} Jan 2019" -10 "May 2019" -5 "Oct 2019"
-                0 "Mar 2020" 5 "Aug 2020" 10 "{&ge} Jan 2021",
-                labsize(medium) angle(15)  ));
-graph export "$GRA/eventdd_month_rate.pdf", replace;
-#delimit cr
-exit
-
-local cond "if year>=2019 [aw=populationyoung]"
-qui tab w, gen(w)
-local cond [aw=populationyoung]
-local cond if year>2016 [aw=populationyoung]
-local varr rate rateSA rateV
-local base w1-w51 
-
-//Compare with caseRate
-gen lead60 = timeToClose<=-60
-foreach num of numlist 59(-1)2 {
-    gen lead`num' = timeToClose == -`num'
-}
-foreach num of numlist 0(1)19 {
-    gen lag`num' = timeToClose == `num'
-
-}
-gen lag20 = timeToClose>=20
-
-areg caseRate lead* lag*, absorb(comuna) 
-gen TIME = _n-61 in 1/80
-gen BETA = .
-gen LB   = .
-gen UB   = .
-local j=1
-foreach l of numlist 60(-1)2 {
-    qui replace BETA = _b[lead`l'] in `j'
-    qui replace LB   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-    qui replace UB   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-    local ++j
-}
-qui replace BETA = 0 in `j'
-qui replace LB   = 0 in `j'
-qui replace UB   = 0 in `j'
-local ++j
-foreach l of numlist 0(1)20 {
-    qui replace BETA = _b[lag`l'] in `j'
-    qui replace LB   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-    qui replace UB   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-    local ++j
-}
-twoway rarea LB UB TIME, color(gs10%50) || scatter BETA TIME, mc(red%70)
-graph export "$GRA/eventCOVID_close.pdf", replace
-
-
-//Compare with quaratine
-areg quarantine lead* lag*, absorb(comuna) 
-gen BETAq = .
-gen LBq   = .
-gen UBq   = .
-local j=1
-foreach l of numlist 60(-1)2 {
-    qui replace BETAq = _b[lead`l'] in `j'
-    qui replace LBq   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-    qui replace UBq   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-    local ++j
-}
-qui replace BETAq = 0 in `j'
-qui replace LBq   = 0 in `j'
-qui replace UBq   = 0 in `j'
-local ++j
-foreach l of numlist 0(1)20 {
-    qui replace BETAq = _b[lag`l'] in `j'
-    qui replace LBq   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-    qui replace UBq   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-    local ++j
-}
-twoway rarea LBq UBq TIME, color(gs10%50) || scatter BETAq TIME, mc(red%70)
-graph export "$GRA/eventQuarantine_close.pdf", replace
-
-//xtitle("Weeks Relative to Schools Close")
-//xlabel(-60 "{&le} 15/01/2019" -50 "-50" -40 "-40" -30 "-30"
-//-20 "-20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5" 10 "10"
-//15 "15" 20 "{&ge} 20")
-local yl = 4
-foreach v of local varr {
-    if `"`v'"'=="rate" {
-        local b=-1
-        local leads 60(-1)2
-        local yl -4(1)4
-    }
-    else {
-        local b=-3
-        local leads 60(-1)4 2 1
-    }
-    if `"`v'"'=="rateSA" local yl -3(1)3
-    if `"`v'"'=="rateV"  local yl -1(1)2    
-    
-    *(2) week and comuna fe
-    #delimit ;
-    eventdd `v' i.comuna `base' `cond', baseline(`b')
-    timevar(timeToClose) cluster(comuna) lags(20) leads(60) accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off)  ylabel(#10, format(%9.1f) labsize(medium))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-60 "{&le} 15 Jan 19" -50 "20 Mar 19" -40 "4 Jun 19"
-                    -30 "13 Aug 19" -20 "22 Oct 19" -10 "31 Dec 19"
-                    0 "10 Mar 20" 10 "19 May 20"
-                    20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
-             xtitle(""));
-    graph export "$GRA/eventdd_noControls_`v'.eps", replace;
-    #delimit cr
-    //Comparison event study
-    gen BETAv = .
-    gen LBv   = .
-    gen UBv   = .
-    local j=1
-    foreach l of numlist `leads' {
-        qui replace BETAv = _b[lead`l'] in `j'
-        qui replace LBv   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-        qui replace UBv   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-        local ++j
-    }
-    qui replace BETAv = 0 in `j'
-    qui replace LBv   = 0 in `j'
-    qui replace UBv   = 0 in `j'
-    local ++j
-    foreach l of numlist 0(1)20 {
-        qui replace BETAv = _b[lag`l'] in `j'
-        qui replace LBv   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-        qui replace UBv   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-        local ++j
-    }
-    #delimit ;
-    twoway rarea LB UB TIME, color(gs10%50) 
-    || scatter BETA TIME, mc(red%70)
-    || rcap LBv UBv TIME, color(black%50)
-    || scatter BETAv TIME, ms(Dh) mc(midblue) 
-    ylabel(`yl', labsize(medium)) ytitle("Rate per 100,000", size(medlarge))
-    xline(-1, lcolor(black)) yline(0, lcolor(black%70) lpattern(solid))
-    xlabel(-60 "{&le} 15 Jan 2019" -50 "20 Mar 2019" -40 "4 Jun 2019"
-           -30 "13 Aug 2019" -20 "22 Oct 2019" -10 "31 Dec 2019"
-           0 "10 Mar 2020" 10 "19 May 2020" 20 "{&ge} 28 Jul 2020", angle(45))
-    xtitle("Calendar Time", size(medlarge))
-    legend(order(4 "Criminal Complaints" 3 "95% CI" 2 "COVID cases" 1 "95% CI")
-           pos(1) ring(0) rows(1));
-    #delimit cr
-    graph export "$GRA/eventJoint_close_`v'.pdf", replace
-    drop BETAv UBv LBv 
-    
-    *(3) week and comuna fe, quarantine control
-    #delimit ;
-    eventdd `v' i.comuna `base' quarantine `cond',  baseline(`b')
-    timevar(timeToClose) cluster(comuna) lags(20) leads(60) accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off)  ylabel(#10, format(%9.1f) labsize(medium))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-60 "{&le} 15 Jan 19" -50 "20 Mar 19" -40 "4 Jun 19"
-                    -30 "13 Aug 19" -20 "22 Oct 19" -10 "31 Dec 19"
-                    0 "10 Mar 20" 10 "19 May 20"
-                    20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
-             xtitle(""));
-    graph export "$GRA/eventdd_QuarantineControls_`v'.eps", replace;
-    #delimit cr
-
-    *(4) COVID controls, quarantine control
-    local controls caseRate pcr positivity quarantine
-    #delimit ;
-    eventdd `v' i.comuna `base' `controls' `cond',  baseline(`b')
-    timevar(timeToClose) cluster(comuna) lags(20) leads(60) accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medium))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-60 "{&le} 15 Jan 19" -50 "20 Mar 19" -40 "4 Jun 19"
-                    -30 "13 Aug 19" -20 "22 Oct 19" -10 "31 Dec 19"
-                    0 "10 Mar 20" 10 "19 May 20"
-                    20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
-             xtitle(""));
-    graph export "$GRA/eventdd_COVIDControls_`v'.eps", replace;
-    #delimit cr		
-    		
-    *(5) COVID controls, quarantine control, mobility control
-    local controls caseRate pcr positivity quarantine movilidad2 p_comunal_m p_comunal_h
-    #delimit ;
-    eventdd `v' i.comuna `base' `controls' `cond',  baseline(`b')
-    timevar(timeToClose) cluster(comuna) lags(20) leads(60) accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medium))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-60 "{&le} 15 Jan 19" -50 "20 Mar 19" -40 "4 Jun 19"
-                    -30 "13 Aug 19" -20 "22 Oct 19" -10 "31 Dec 19"
-                    0 "10 Mar 20" 10 "19 May 20"
-                    20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
-             xtitle(""));
-    graph export "$GRA/eventdd_mobility_`v'.eps", replace;
-    #delimit cr
-
-    //Comparison event study
-    gen BETAv = .
-    gen LBv   = .
-    gen UBv   = .
-    local j=1
-    foreach l of numlist `leads' {
-        qui replace BETAv = _b[lead`l'] in `j'
-        qui replace LBv   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-        qui replace UBv   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-        local ++j
-    }
-    qui replace BETAv = 0 in `j'
-    qui replace LBv   = 0 in `j'
-    qui replace UBv   = 0 in `j'
-    local ++j
-    foreach l of numlist 0(1)20 {
-        qui replace BETAv = _b[lag`l'] in `j'
-        qui replace LBv   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-        qui replace UBv   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-        local ++j
-    }
-    #delimit ;
-    twoway rarea LB UB TIME, color(gs10%50) 
-    || scatter BETA TIME, mc(red%70)
-    || rarea LBq UBq TIME, color(gs10%50) yaxis(2) ylabel(-1(0)1, axis(2))
-    || scatter BETAq TIME, mc(purple%70) yaxis(2) 
-    || rcap LBv UBv TIME, color(black%50)
-    || scatter BETAv TIME, ms(Dh) mc(midblue) xline(0, lcolor(black))
-    yline(0, lcolor(black))
-    ylabel(-4(1)4, labsize(medium)) ytitle("Rate per 100,000", size(medlarge))
-    ytitle("Lockdown", axis(2) size(medlarge))
-    legend(order(5 "Criminal Complaints" 6 "95% CI" 1 "COVID cases" 3 "Lockdown"
-                 2 "95% CI") pos(6) rows(1));
-    #delimit cr
-    graph export "$GRA/eventJoint_close_X_`v'.pdf", replace
-    #delimit ;
-    twoway rarea LB UB TIME, color(gs10%50) 
-    || scatter BETA TIME, mc(red%70)
-    || rcap LBv UBv TIME, color(black%50)
-    || scatter BETAv TIME, ms(Dh) mc(midblue) 
-    ylabel(`yl') ytitle("Rate per 100,000")
-    xline(0, lcolor(black)) yline(0, lcolor(black))
-    legend(order(4 "Criminal Complaints" 3 "95% CI" 2 "COVID cases" 1 "95% CI")
-           pos(6) rows(1));
-    #delimit cr
-    graph export "$GRA/eventJoint_close_X_`v'.pdf", replace
-    drop BETAv UBv LBv 
-}
-drop LB UB TIME BETA LBq UBq BETAq lag* lead*
-
-
-
-
-*-----------------------------------------------------------------------------
-*-- (4b) Event Studies -- reopening
-*-------------------------------------------------------------------------------
-*time to open schools
-bys comuna (week): egen minOpen = min(week) if SchoolOpen_i==1
-bys comuna: egen openStart = min(minOpen)
-gen timeToOpen = week-openStart
-
-
-
-gen lead20 = timeToOpen<=-20
-foreach num of numlist 19(-1)2 {
-    gen lead`num' = timeToOpen == -`num'
-}
-foreach num of numlist 0(1)39 {
-    gen lag`num' = timeToOpen == `num'
-
-}
-gen lag40 = timeToOpen>=40
-areg caseRate lead* lag*, absorb(comuna) 
-gen TIME = _n-21 in 1/60
-gen BETA = .
-gen LB   = .
-gen UB   = .
-local j=1
-foreach l of numlist 20(-1)2 {
-    qui replace BETA = _b[lead`l'] in `j'
-    qui replace LB   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-    qui replace UB   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-    local ++j
-}
-qui replace BETA = 0 in `j'
-qui replace LB   = 0 in `j'
-qui replace UB   = 0 in `j'
-local ++j
-foreach l of numlist 0(1)40 {
-    qui replace BETA = _b[lag`l'] in `j'
-    qui replace LB   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-    qui replace UB   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-    local ++j
-}
-twoway rarea LB UB TIME, color(gs10%50) || scatter BETA TIME, mc(red%70)
-graph export "$GRA/eventCOVID_open.pdf", replace
-
-local varr rate rateSA rateV
-local base w1-w51 
-local leads 20
-local cond if year>2016 [aw=populationyoung]
-
-foreach v of local varr {
-    if `"`v'"'=="rate"   local yl -4(1)4
-    if `"`v'"'=="rateSA" local yl -3(1)3
-    if `"`v'"'=="rateV"  local yl -1(1)2    
-    *(2) week and comuna fe
-    #delimit ;
-    eventdd `v' i.comuna `base' `cond',
-    timevar(timeToOpen) cluster(comuna) lags(40) leads(`leads') accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off)
-             xtitle("Weeks Relative to Schools Reopening", size(medlarge))
-             ylabel(#10, format(%9.1f) labsize(medium))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
-                    10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_noControls_`v'.eps", replace;
-    #delimit cr
-
-    //Comparison event study
-    gen BETAv = .
-    gen LBv   = .
-    gen UBv   = .
-    local j=1
-    foreach l of numlist 20(-1)2 {
-        qui replace BETAv = _b[lead`l'] in `j'
-        qui replace LBv   = _b[lead`l']-1.96*_se[lead`l'] in `j'
-        qui replace UBv   = _b[lead`l']+1.96*_se[lead`l'] in `j'
-        local ++j
-    }
-    qui replace BETAv = 0 in `j'
-    qui replace LBv   = 0 in `j'
-    qui replace UBv   = 0 in `j'
-    local ++j
-    foreach l of numlist 0(1)40 {
-        qui replace BETAv = _b[lag`l'] in `j'
-        qui replace LBv   = _b[lag`l']-1.96*_se[lag`l'] in `j'
-        qui replace UBv   = _b[lag`l']+1.96*_se[lag`l'] in `j'
-        local ++j
-    }
-    #delimit ;
-    twoway rarea LB UB TIME, color(gs10%50) 
-    || scatter BETA TIME, mc(red%70)
-    || rcap LBv UBv TIME, color(black%50)
-    || scatter BETAv TIME, ms(Dh) mc(midblue) 
-    ylabel(`yl', labsize(medium)) ytitle("Rate per 100,000", size(medlarge))
-    xline(-1, lcolor(black)) yline(0, lcolor(black%70) lpattern(solid))
-    xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0"
-           5 "5" 10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium))
-    xtitle("Weeks Relative to Schools Reopening", size(medlarge))
-    legend(order(4 "Criminal Complaints" 3 "95% CI" 2 "COVID cases" 1 "95% CI")
-           pos(1) ring(0) rows(1));
-    #delimit cr
-    graph export "$GRA/eventJoint_open_`v'.pdf", replace
-    drop BETAv UBv LBv 
-    //End
-    
-    *(3) week and comuna fe, quarantine control
-    #delimit ;
-    eventdd `v' i.comuna `base' quarantine `cond',
-    timevar(timeToOpen) cluster(comuna) lags(40) leads(`leads') accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medlarge))
-             xtitle("Weeks Relative to Schools Reopening", size(medlarge))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
-                    10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_QuarantineControls_`v'.eps", replace;
-    #delimit cr
-
-    *(4) COVID controls, quarantine and epi controles
-    local controls caseRate pcr positivity quarantine
-    #delimit ;
-    eventdd `v' i.comuna `base' `controls' `cond',
-    timevar(timeToOpen) cluster(comuna) lags(40) leads(`leads') accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medium))
-             xtitle("Weeks Relative to Schools Reopening", size(medlarge))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
-                    10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_COVIDControls_`v'.eps", replace;
-    #delimit cr		
-    		
-    *(5) COVID controls, quarantine control, mobility control
-    local controls caseRate pcr positivity quarantine movilidad2 p_comunal_m p_comunal_h
-    #delimit ;
-    eventdd `v' i.comuna `base' `controls' `cond',
-    timevar(timeToOpen) cluster(comuna) lags(40) leads(`leads') accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medum))
-             xtitle("Weeks Relative to Schools Reopening", size(medlarge))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
-                    10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_mobility_`v'.eps", replace;
-    #delimit cr		
-}
+log close

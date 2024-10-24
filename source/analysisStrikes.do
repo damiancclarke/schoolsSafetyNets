@@ -78,7 +78,7 @@ pos(1) ring(0)) ;
 #delimit cr
 graph export "$GRA/attendanceTrendsStrikes_Primary.pdf", replace
 restore
-exit
+
 
 collapse (mean) rateInatt*, by(com_cod fecha month year)
 
@@ -189,12 +189,10 @@ preserve
 bys comuna: egen strikevar = mean(strikeD_sin)
 count
 sum strikevar, d
-local limit = r(mean)
 local limit=0.15
 gen highStrike=0
 replace highStrike = 1 if strikevar>`limit' & strikevar!=.
-*replace highStrike = 2 if strikevar>r(p50) & strikevar!=.
-*replace highStrike = 3 if strikevar>r(p75) & strikevar!=.
+
 gen time3 = floor(tm/3)
 collapse strikeXduring_all rateSecon [aw=populationyoung], by(tm highStrike)
 
@@ -333,7 +331,9 @@ esttab est1 est2 est3 est4 est5 est6 est7 est8
 estimates clear
 
 
+
 sum strike_sin
+exit
 local sd=r(sd)
 local wt    [aw=popS]
 eststo: reghdfe rateAllDif strikeXduring_sin  `conts' `wt', `opts'
