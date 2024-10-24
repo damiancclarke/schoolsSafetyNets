@@ -713,3 +713,21 @@ fragment replace noline label mlabels(, none);
 estimates clear
 
 
+//Summary statistics
+gen strikeIntense = strike_sin
+replace strikeIntense = 0 if strike_sin==.
+
+lab var denuncias        "All Violence Against Children" 
+lab var attendance       "Attendance"
+lab var vacations        "Vacation Period"
+lab var inTerm1          "Term Time (non Post-vacations)"
+lab var postVacations    "Post-vacation Period"
+lab var populationyoung  "Population"
+
+#delimit ;
+local PA denuncias attendance vacations inTerm1 postVacations populationyoung;
+estpost sum `PA' if e(sample)==1;
+estout using "$OUT/Vacations.tex", replace label  mlabels(,none) 
+collabels(,none) cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") 
+style(tex);
+#delimit cr
