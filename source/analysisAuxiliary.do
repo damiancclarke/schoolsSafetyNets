@@ -16,9 +16,10 @@ cap log close
 *-------------------------------------------------------------------------------
 global ROOT "/home/`c(username)'/investigacion/2022/childrenSchools/replication"
 global DAT "$ROOT/data"
-global OUT "$ROOT/results/graphs"
-global LOG "$ROOT/results/log"
+global OUT "$ROOT/results/graphs/auxiliary"
+global LOG "$ROOT/log"
 
+cap mkdir "$OUT"
 log using "$LOG/analysisAuxiliary.txt", text replace
 
 
@@ -26,7 +27,7 @@ log using "$LOG/analysisAuxiliary.txt", text replace
 *-------------------------------------------------------------------------------
 *--- (1) Worldwide
 *-------------------------------------------------------------------------------
-import delimited using "$DAT/school-closures-covid", clear
+import delimited using "$DAT/international/school-closures-covid", clear
 ren day date
 gen year=substr(date, 1, 4)
 gen month=substr(date, 6, 2)
@@ -53,7 +54,8 @@ forval i=1/3 {
 keep if d<=22872
 
 #delimit ;
-tw line c3 d, lw(1pt) || line c2 d, lw(1pt) || line c1 d, lw(1pt) || line c0 d, lw(1pt) lp(-......) ||, 
+tw line c3 d, lw(1pt) || line c2 d, lw(1pt) 
+|| line c1 d, lw(1pt) || line c0 d, lw(1pt) lp(-......) ||, 
 	xlabel(#12, angle(45)) xtitle("")
 	legend(order(1 "Required (all levels)"
 	             2 "Required (only at some levels)"
@@ -67,7 +69,7 @@ graph export "$OUT/countries_all.eps", replace;
 *-------------------------------------------------------------------------------
 *--- (2) Attendance by age
 *-------------------------------------------------------------------------------
-use "$DAT/CASEN/Casen 2017.dta"
+use "$DAT/CASEN/CASEN2017_extract.dta", clear
 keep if edad<20
 
 gen asiste_0_4  =e3==1 if edad<5&e3!=.
@@ -130,9 +132,8 @@ graph export $OUT/schoolCloseGDP.eps, replace;
 *-------------------------------------------------------------------------------
 *--- (4) Attendance under-reporting tests: currently commented out as data v large
 *-------------------------------------------------------------------------------
-/*
 foreach month in Octubre Noviembre {
-    import delimited "$DAT/Asistencia/Asistencia_`month'_2018.csv", encoding(ISO-8859-1) clear
+    import delimited "$DAT/attendance/Asistencia_`month'_2018.csv", encoding(ISO-8859-1) clear
     keep if cod_ense==110
     keep if cod_grado==4
     bys mrun: gen nreps=_N
@@ -172,7 +173,7 @@ gen attendanceLower = 0.86
 gen attendanceUpper = 0.95
 
 #delimit ;
-twoway rarea attendanceLower attendanceUpper timeToTest if timeToTest >= -1 & timeToTest <= 1, color(gs12%70)
+twoway rarea attendanceLower attendanceUpper timeToTest  if timeToTest >= -1 & timeToTest <= 1, color(gs12%70)
 || connected attendance timeToTest, lwidth(thick) lcolor(purple) lpattern(solid) mcolor(purple)
 ylabel(0.86(0.02)0.94, format(%5.2f) labsize(medium)) legend(off)
 xlabel(-20 "Fri Oct 5" -15 "Fri Oct 12 " -10 "Mon Oct 22" -5 "Mon Oct 29"
@@ -183,7 +184,7 @@ graph export "$OUT/attendanceSIMCEtime.pdf", replace;
 #delimit cr
 
 
-import delimited "$DAT/Asistencia/Asistencia_Noviembre_2018.csv", encoding(ISO-8859-1) clear
+import delimited "$DAT/attendance/Asistencia_Noviembre_2018.csv", encoding(ISO-8859-1) clear
 keep if cod_ense==110
 keep if cod_grado==4
 
@@ -213,16 +214,15 @@ order rbd mrun nreps nreps2 repetido_leng nreps_leng repetido2_leng repetido_mat
 drop if nreps_mat>1 & repetido_mat==1
 drop if nreps_leng>1 & repetido_leng==1
 
-collapse (count) asistencia_simceleng asistencia_simcemat inasistencia_simceleng inasistencia_simcemat repetido_leng repetido_mat repetido2_leng repetido2_mat, by(rbd)
+#delimit ;
+collapse (count) asistencia_simceleng asistencia_simcemat inasistencia_simceleng 
+inasistencia_simcemat repetido_leng repetido_mat repetido2_leng repetido2_mat, by(rbd);
+#delimit cr
 
-merge 1:1 rbd using "$DAT/Asistencia/asistencia_simce42018.dta"
+merge 1:1 rbd using "$DAT/attendance/asistencia_simce42018.dta"
 
 keep if _merge==3
 drop _merge
-label variable nalu_lect4b_rbd "attendance Simce lang 4° 2018"
-label variable nalu_mate4b_rbd "attendance Simce math 4° 2018"
-label variable asistencia_simceleng "admin attendance Simce lang 4° 2018"
-label variable asistencia_simcemat "admin attendance Simce math 4° 2018"
 
 drop if asistencia_simceleng==0 & nalu_lect4b_rbd>0
 drop if asistencia_simcemat==0 & nalu_mate4b_rbd >0
@@ -233,11 +233,6 @@ twoway scatter asistencia_simcemat nalu_mate4b_rbd, mc(black%80) ms(Oh)
 ytitle("Reported Test Day Attendance") xtitle("Observed Test-takers")
 legend(off);
 graph export "$OUT/attendance_2018_simce4mate.pdf", replace;
-
-tw scatter asistencia_simceleng nalu_lect4b_rbd
-|| line asistencia_simceleng asistencia_simceleng, sort;
-graph export "$OUT/attendance_2018_simce4lang.eps", replace;
 #delimit cr
-*/
-    
+
 log close

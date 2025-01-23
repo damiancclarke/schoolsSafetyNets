@@ -17,13 +17,16 @@ global ROOT "C:/Users/danie/OneDrive/Escritorio/Research/SchoolClosureViolence/"
 global ROOT "~/investigacion/2022/childrenSchools"
 
 global DAT "$ROOT/replication/data"
-global GRA "$ROOT/replication/results/graphs"
-global OUT "$ROOT/replication/results/tables"
+global OUT "$ROOT/replication/results/graphs/strikes"
+global TAB "$ROOT/replication/results/tables"
 global LOG "$ROOT/replication/log"
 
 set scheme plotplainblind, permanently
 graph set window fontface "Times New Roman"
 
+cap mkdir "$OUT"
+
+log using "$LOG/analysisStrikes.txt", text replace
 
 *-------------------------------------------------------------------------------
 *-- (1) Set-up
@@ -65,7 +68,7 @@ ytitle("Secondary School Attendance (1000s)", size(medlarge))
 legend(order(1 "Attendance 2011" 2 "Attendance 2013-2014")
 pos(1) ring(0)) ;
 #delimit cr
-graph export "$GRA/attendanceTrendsStrikes.pdf", replace
+graph export "$OUT/attendanceTrendsStrikes.pdf", replace
 
 #delimit ;
 twoway connected asiste_bas doy if yr2011 ==1, `l1'
@@ -77,7 +80,7 @@ ytitle("Primary School Attendance (1000s)", size(medlarge))
 legend(order(1 "Attendance 2011" 2 "Attendance 2013-2014")
 pos(1) ring(0)) ;
 #delimit cr
-graph export "$GRA/attendanceTrendsStrikes_Primary.pdf", replace
+graph export "$OUT/attendanceTrendsStrikes_Primary.pdf", replace
 restore
 
 
@@ -183,7 +186,7 @@ xlabel(, labsize(medium)) ylabel(, labsize(medium))
 xline(617, lcolor(red)) xline(623, lcolor(red))
 text(68 620 "Strike") text(66 620 "Period");
 #delimit cr
-graph export "$GRA/strikeDescriptive.pdf", replace
+graph export "$OUT/strikeDescriptive.pdf", replace
 drop strikeX
 reshape wide rateS, i(tm) j(highStrike)
 gen diff=rateSecondary1-rateSecondary0
@@ -196,7 +199,7 @@ ylabel(, labsize(medium)) yline(0, lcolor(black%30) lpattern(dash))
 xline(617, lcolor(red)) xline(623, lcolor(red))
 text(19 620 "Strike") text(17.5 620 "Period");
 #delimit cr
-graph export "$GRA/strikeDescriptiveDiff.pdf", replace
+graph export "$OUT/strikeDescriptiveDiff.pdf", replace
 restore
 
 #delimit ;
@@ -206,7 +209,7 @@ ylabel(, labsize(medium))
 xtitle("Strike Intensity", size(medlarge))
 ytitle("Density", size(medlarge));
 #delimit cr
-graph export "$GRA/strikeIntensity.pdf", replace
+graph export "$OUT/strikeIntensity.pdf", replace
 
 
 *-------------------------------------------------------------------------------
@@ -250,7 +253,7 @@ estadd scalar effect = _b[strikeXduring_sin]*`sd'
 
 lab var strikeXduring_sin "Strike Intensity $\times$ Strike"
 #delimit ;
-estout est1 est2 est3 est4 using "$OUT/strikesMain.tex", replace
+estout est1 est2 est3 est4 using "$TAB/strikesMain.tex", replace
 cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikeXduring_sin) style(tex)
 stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %05.2f )
       labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\  Var."))
@@ -275,7 +278,7 @@ lab var popSecondary     "Population of Secondary Students"
 #delimit ;
 local PA rateAllS rateSec rateSASe rateVS strikeperiod strikeIntense popSecondary;
 estpost sum `PA' if e(sample)==1;
-estout using "$OUT/summaryStrikes.tex", replace label  mlabels(,none) 
+estout using "$TAB/summaryStrikes.tex", replace label  mlabels(,none) 
 collabels(,none) cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") 
 style(tex);
 #delimit cr
@@ -313,7 +316,7 @@ eststo: reghdfe rateVDif   strikedXduring_sin `conts' `wt', `opts'
 esttab est1 est2 est3 est4 est5 est6 est7 est8
 lab var strikeXduring_sin "Strike Intensity $\times$ Strike"
 #delimit ;
-estout est1 est2 est3 est4 using "$OUT/strikesTripleDiff.tex", replace
+estout est1 est2 est3 est4 using "$TAB/strikesTripleDiff.tex", replace
 cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikeXduring_sin) style(tex)
 stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %05.2f )
       labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\  Var."))
@@ -323,3 +326,5 @@ mlabels(none) collabels(none);
 
 estimates clear
 
+
+log close
