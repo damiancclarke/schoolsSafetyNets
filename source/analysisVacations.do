@@ -16,8 +16,8 @@ cap log close
 global ROOT "/home/`c(username)'/investigacion/2022/childrenSchools/replication"
 global DAT "$ROOT/data"
 global OUT "$ROOT/results/graphs/vacations"
-global TAB "$ROOT/results/reg"
-global LOG "$ROOT/results/log"
+global TAB "$ROOT/results/tables"
+global LOG "$ROOT/log"
 
 cap mkdir "$OUT"
 
@@ -31,19 +31,6 @@ use "$DAT/denuncias_fechas_clean.dta"
 *-------------------------------------------------------------------------------
 *--- (2) Descriptives by calendar time
 *-------------------------------------------------------------------------------
-preserve
-collapse (sum) caso, by(date)
-twoway line caso date
-graph export "$OUT/casesByDate.pdf", replace
-gen day = day(date)
-twoway line caso date if day!=1
-graph export "$OUT/casesByDateNoFirst.pdf", replace
-
-gen year = year(date)
-twoway line caso date if day!=1&year==2018
-graph export "$OUT/casesByDateNoFirst_2018.pdf", replace
-restore
-
 preserve
 collapse (sum) caso, by(mes año)
 gen date = año+(mes-1)/12
@@ -158,15 +145,6 @@ collapse (sum)  caso, by(timeToNearestSummerLeave year)
 gen weeks = floor(timeToNearestSummerLeave/7)
 collapse (sum) caso, by(weeks year)
 collapse       caso, by(weeks)
-#delimit ;
-twoway connected caso weeks if weeks>-20&weeks<14, 
-lcolor(blue%70) lwidth(thick)  ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Summer Vacations", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Reported Violence Against Children", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/casesAroundSummerClose.pdf", replace
 tempfile summerClose
 save `summerClose'
 restore
@@ -195,15 +173,6 @@ collapse (sum) caso, by(timeToNearestSummerReturn year)
 gen weeks = floor(timeToNearestSummerReturn/7)
 collapse (sum) caso, by(weeks year)
 collapse       caso, by(weeks)
-#delimit ;
-twoway connected caso weeks if weeks>-20&weeks<15, 
-lcolor(blue%70) lwidth(thick) ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Beginning of School", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Reported Violence Against Children", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/casesAroundSummerReturn.pdf", replace
 tempfile summerReturn
 save `summerReturn'
 restore
@@ -232,15 +201,6 @@ collapse (sum) caso, by(timeToNearestWinterLeave year)
 gen weeks = floor(timeToNearestWinterLeave/7)
 collapse (sum) caso, by(weeks year)
 collapse       caso, by(weeks)
-#delimit ;
-twoway connected caso weeks if weeks>-20&weeks<14, 
-lcolor(blue%70) lwidth(thick)  ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Winter Vacations", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Reported Violence Against Children", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/casesAroundWinterClose.pdf", replace
 tempfile winterClose
 save `winterClose'
 restore
@@ -269,14 +229,6 @@ collapse (sum) caso, by(timeToNearestWinterReturn year)
 gen weeks = floor(timeToNearestWinterReturn/7)
 collapse (sum) caso, by(weeks year)
 collapse       caso, by(weeks)
-#delimit ;
-twoway connected caso weeks if weeks>-20&weeks<15, lcolor(blue%70) lwidth(thick)  ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Return From Winter Vacations", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Reported Violence Against Children", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/casesAroundWinterReturn.pdf", replace
 tempfile winterReturn
 save `winterReturn'
 restore
@@ -293,7 +245,7 @@ local c2 16101 16102 16202 16203 16302 16103 16104 16204 16303 16105 16106 16205
 
 //systematise comuna numbers for changed codes
 preserve
-use "$DAT/Asistencia/asistencia_2011_2022.dta", clear
+use "$DAT/attendance/asistencia_2011_2022.dta", clear
 tokenize `c1'
 foreach c of local c2 {
     replace com_cod=`1' if com_cod==`c'
@@ -446,16 +398,6 @@ foreach var of varlist asiste* {
     replace `var'=`var'/1000
 }
 
-#delimit ;
-twoway connected asiste_bas_med weeks if weeks>-20&weeks<14, 
-lcolor(blue%70) lwidth(thick)  ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Summer Vacations", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Attendance Rate", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/attendanceAroundSummerClose.pdf", replace
-
 merge 1:1 weeks using `summerClose'
 #delimit ;
 twoway connected `graphVar' weeks if `times', 
@@ -484,16 +426,6 @@ foreach var of varlist asiste* {
     replace `var'=`var'/1000
 }
 
-#delimit ;
-twoway connected asiste_bas_med weeks if weeks>-20&weeks<15, 
-lcolor(blue%70) lwidth(thick) ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Beginning of School", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Attendance Rate", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/attendanceAroundSummerReturn.pdf", replace
-
 merge 1:1 weeks using `summerReturn'
 #delimit ;
 twoway connected `graphVar' weeks if `times', 
@@ -521,16 +453,6 @@ collapse       asiste*, by(weeks)
 foreach var of varlist asiste* {
     replace `var'=`var'/1000
 }
-
-#delimit ;
-twoway connected asiste weeks if weeks>-20&weeks<14, 
-lcolor(blue%70) lwidth(thick)  ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Winter Vacations", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Attendance Rate", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/attendanceAroundWinterClose.pdf", replace
 
 merge 1:1 weeks using `winterClose'
 #delimit ;
@@ -561,17 +483,6 @@ foreach var of varlist asiste* {
     replace `var'=`var'/1000
 }
 
-
-list if abs(weeks)<25
-#delimit ;
-twoway connected asiste weeks if weeks>-20&weeks<15, 
-  lcolor(blue%70) lwidth(thick)  ms(Sh) mcolor(blue%70)
-xtitle("Weeks Until Return From Winter Vacations", size(medlarge)) 
-xlabel(-20(5)10, labsize(medlarge)) 
-ytitle("Attendance Rate", size(medlarge))
-xline(-1, lcolor(red)) ylabel(, format(%9.0gc) labsize(medlarge));
-#delimit cr
-graph export "$OUT/attendanceAroundWinterReturn.pdf", replace
 
 merge 1:1 weeks using `winterReturn'
 #delimit ;

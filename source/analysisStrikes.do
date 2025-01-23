@@ -1,6 +1,8 @@
 /* strikes.do                        DP/DC                 yyyy-mm-dd:2024-06-06
 ----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
 
+DONE
+
 */
 
 vers 18
@@ -16,8 +18,8 @@ global ROOT "~/investigacion/2022/childrenSchools"
 
 global DAT "$ROOT/replication/data"
 global GRA "$ROOT/replication/results/graphs"
-global OUT "$ROOT/replication/results/reg"
-global LOG "$ROOT/replication/results/log"
+global OUT "$ROOT/replication/results/tables"
+global LOG "$ROOT/replication/log"
 
 set scheme plotplainblind, permanently
 graph set window fontface "Times New Roman"
@@ -26,12 +28,11 @@ graph set window fontface "Times New Roman"
 *-------------------------------------------------------------------------------
 *-- (1) Set-up
 *-------------------------------------------------------------------------------
-use $DAT/Asistencia/asistencia_2011_2022.dta, clear
+use "$DAT/attendance/asistencia_2011_2022.dta", clear
 gen month = month(date)
 gen year = year(date)
 gen fecha = ym(year, month)
 format %tm fecha
-*keep if fecha<=tm(2019m12)
 
 gen rateInatt_all = no_asiste_med/(no_asiste_med+asiste_med)
 gen rateInatt_sin = no_asiste_med_srep/(no_asiste_med_srep+asiste_med_srep)
@@ -116,7 +117,7 @@ save `dasistencia'
 
 
 //unimos con data mensual//
-use "$DAT/SchoolClosure_Final_RR.dta", clear
+use "$DAT/SchoolClosure_Final_RR_01102024.dta", clear
 xtset comuna week
 format month %tm 
 gen mm = month(monday)
@@ -162,29 +163,6 @@ gen rateAllDiff = rateAllSecondary-rateAllPrimary
 *-------------------------------------------------------------------------------
 *-- (2) Descriptives
 *-------------------------------------------------------------------------------
-preserve
-bys comuna: egen strikevar = mean(strikeD_sin)
-count
-sum strikevar, d
-local limit = r(mean)
-local limit = 0.15
-gen highStrike=0
-replace highStrike = 1 if strikevar>`limit' & strikevar!=.
-*replace highStrike = 2 if strikevar>r(p50) & strikevar!=.
-*replace highStrike = 3 if strikevar>r(p75) & strikevar!=.
-gen time3 = floor(tm/3)
-gen rateAll = rateSASec+rateVSec+rateSec
-collapse strikeXduring_all rateSec [aw=populationyoung], by(time3 highStrike)
-
-#delimit ;
-twoway line rate time3 if time3<=214&highStrike==0, lwidth(thick) lcolor(blue)
-    || line rate time3 if time3<=214&highStrike==1, lwidth(thick) lcolor(red)
-legend(order(1 "Low Strike" 2 "High Strike"))
-xline(205, lcolor(red)) xline(208, lcolor(red));
-#delimit cr
-graph export "$GRA/strikeDescriptive_3m.pdf", replace
-restore
-
 preserve
 bys comuna: egen strikevar = mean(strikeD_sin)
 count
@@ -270,46 +248,11 @@ sum rateVSecondary if e(sample)==1
 estadd scalar mean=r(mean)
 estadd scalar effect = _b[strikeXduring_sin]*`sd'
 
-//Difference value
-sum strikeD_sin
-local sd=r(sd)
-eststo: reghdfe rateAllSecondary strikedXduring_sin `conts' `wt', `opts'
-sum rateAllSecondary if e(sample)==1
-estadd scalar mean=r(mean)
-estadd scalar effect = _b[strikedXduring_sin]*`sd'
-
-eststo: reghdfe rateSecondary    strikedXduring_sin `conts' `wt', `opts'
-sum rateSecondary if e(sample)==1
-estadd scalar mean=r(mean)
-estadd scalar effect = _b[strikedXduring_sin]*`sd'
-
-eststo: reghdfe rateSASecondary  strikedXduring_sin `conts' `wt', `opts'
-sum rateSASecondary if e(sample)==1
-estadd scalar mean=r(mean)
-estadd scalar effect = _b[strikedXduring_sin]*`sd'
-
-eststo: reghdfe rateVSecondary   strikedXduring_sin `conts' `wt', `opts'
-sum rateVSecondary if e(sample)==1
-estadd scalar mean=r(mean)
-estadd scalar effect = _b[strikedXduring_sin]*`sd'
-
-esttab est1 est2 est3 est4 est5 est6 est7 est8
 lab var strikeXduring_sin "Strike Intensity $\times$ Strike"
 #delimit ;
 estout est1 est2 est3 est4 using "$OUT/strikesMain.tex", replace
 cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikeXduring_sin) style(tex)
 stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %05.2f )
-      labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\  Var."))
-starlevels(* 0.10 ** 0.05 *** 0.01) label
-mlabels(none) collabels(none);
-#delimit cr
-
-
-lab var strikedXduring_sin "Alternative Strike Intensity $\times$ Strike"
-#delimit ;
-estout est5 est6 est7 est8 using "$OUT/strikesAlt.tex", replace
-cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikedXduring_sin) style(tex)
-stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %05.2f)
       labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\  Var."))
 starlevels(* 0.10 ** 0.05 *** 0.01) label
 mlabels(none) collabels(none);
@@ -338,24 +281,8 @@ style(tex);
 #delimit cr
 
 
-local wt    [aw=popP]
-eststo: reghdfe rateAllPrimary strikeXduring_sin  `conts' `wt', `opts'
-eststo: reghdfe ratePrimary    strikeXduring_sin  `conts' `wt', `opts'
-eststo: reghdfe rateSAPrimary  strikeXduring_sin  `conts' `wt', `opts'
-eststo: reghdfe rateVPrimary   strikeXduring_sin  `conts' `wt', `opts'
-
-eststo: reghdfe rateAllPrimary strikedXduring_sin `conts' `wt', `opts'
-eststo: reghdfe ratePrimary    strikedXduring_sin `conts' `wt', `opts'
-eststo: reghdfe rateSAPrimary  strikedXduring_sin `conts' `wt', `opts'
-eststo: reghdfe rateVPrimary   strikedXduring_sin `conts' `wt', `opts'
-
-esttab est1 est2 est3 est4 est5 est6 est7 est8
-estimates clear
-
-
 
 sum strike_sin
-exit
 local sd=r(sd)
 local wt    [aw=popS]
 eststo: reghdfe rateAllDif strikeXduring_sin  `conts' `wt', `opts'
