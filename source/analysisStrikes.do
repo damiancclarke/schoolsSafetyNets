@@ -17,7 +17,7 @@ global ROOT "C:/Users/danie/OneDrive/Escritorio/Research/SchoolClosureViolence/"
 global ROOT "~/investigacion/2022/childrenSchools"
 
 global DAT "$ROOT/replication/data"
-global OUT "$ROOT/replication/results/graphs/strikes"
+global OUT "$ROOT/replication/results/figures/strikes"
 global TAB "$ROOT/replication/results/tables"
 global LOG "$ROOT/replication/log"
 
@@ -119,8 +119,8 @@ save `dasistencia'
 
 
 
-//unimos con data mensual//
-use "$DAT/SchoolClosure_Final_RR_01102024.dta", clear
+//Join with monthly data//
+use "$DAT/SchoolClosure_main.dta", clear
 xtset comuna week
 format month %tm 
 gen mm = month(monday)
