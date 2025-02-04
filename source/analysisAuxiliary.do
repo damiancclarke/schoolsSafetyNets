@@ -16,12 +16,11 @@ cap log close
 *-------------------------------------------------------------------------------
 global ROOT "/home/`c(username)'/investigacion/2022/childrenSchools/replication"
 global DAT "$ROOT/data"
-global OUT "$ROOT/results/graphs/auxiliary"
+global OUT "$ROOT/results/figures/auxiliary"
 global LOG "$ROOT/log"
 
 cap mkdir "$OUT"
 log using "$LOG/analysisAuxiliary.txt", text replace
-
 
 
 *-------------------------------------------------------------------------------
@@ -67,7 +66,97 @@ graph export "$OUT/countries_all.eps", replace;
 
 
 *-------------------------------------------------------------------------------
-*--- (2) Attendance by age
+*--- (2) Opening and development internationally
+*-------------------------------------------------------------------------------
+clear all
+use "$DAT/international/UNESCO_school_closures_database"
+
+rename CountryID countrycode
+merge m:1 countrycode using "$DAT/international/GDPpc"
+drop _merge
+merge m:1 countrycode using "$DAT/international/pop"
+bys countrycode: gen n=_n
+encode Region2, gen(Region)
+
+keep if yr2019<100000
+colorpalette viridis, n(7)
+
+graph set eps fontface "Times New Roman"
+graph set window fontface "Times New Roman"
+#delimit ;
+twoway scatter Weeksfullyclose yr2019 if n==1 [aw=Enrolment],
+  colorvar(Region) colordiscrete colorlist(`r(p)')
+coloruseplegend
+plegend(order(- "Region" 7 "SSA" 6 "Asia C/S" 5 "Asia E/SE"
+              4 "LAC" 3 "Europe/NA" 2 "Oceania"  1 "MENA"))
+||   qfit Weeksfullyclose yr2019 if n==1, lcolor(gs12%40) lpattern(solid)
+ytitle("Weeks Fully Closed") xtitle("GDP per capita (2019)") legend(off)
+scheme(stcolor);
+graph export $OUT/schoolCloseGDP.eps, replace;
+#delimit cr
+
+
+*-------------------------------------------------------------------------------
+*--- (3) Opening and development internationally
+*-------------------------------------------------------------------------------
+use "$DAT/covid/stress.dta", clear
+#delimit ;
+twoway (line estres sunday)
+       (line covid sunday, lc(blue)),
+xlabel(#13, angle(45)) xline(21989 22144, lc(red)) ytitle("Web searching")
+legend(order(1 "Stress" 2 "COVID") col(2) pos(11) ring(0) colg(1pt) 
+bm(zero) keyg(.8pt) size(small) region(lcolor(gs8))) xtitle("");
+graph export "$OUT/stress.eps", replace;
+#delimit cr
+
+use "$DAT/covid/residential.dta", clear
+set obs 848
+sum residential if date<=21975
+replace residential=-.07272727 in 848  
+replace date=21550 in 848
+sort date
+
+keep if date<=22645
+
+#delimit ;
+twoway (line residential date if date>=21960)
+       (line residential date if date<=21960, lp(dash)),
+xlabel(#13, angle(45)) xline(21989 22144, lc(red)) xtitle("")
+legend(off) ytitle("Residential percent change");
+graph export "$OUT/residential.eps", replace;
+#delimit cr
+
+import excel using "$DAT/covid/desempleo.xls", clear cellrange(A111:B146)
+ren (A B) (date desempleo)
+
+#delimit ;
+twoway line desempleo date,
+xlabel(#13, angle(45)) xline(21989 22144, lc(red)) xtitle("")
+legend(off) ytitle("Unemployment rate %");
+graph export "$OUT/Unemployment.eps", replace;
+#delimit cr
+
+import delimited "$DAT/covid/fonofamilia_Agregado.csv", clear
+gen year=substr(time,1,4)
+gen month=substr(time,6,2)
+gen day=1
+destring year month, replace
+gen t=mdy(month,day,year)
+format %d t
+set obs 37
+replace t=22646 in 37
+
+#delimit ;
+twoway line callsto149 t,
+xlabel(#13, angle(45)) xline(21989 22144, lc(red)) xtitle("")
+legend(off) ytitle("Calls to #149");
+graph export "$OUT/callsto149.eps", replace;
+#delimit cr
+
+
+
+*-------------------------------------------------------------------------------
+*--- (4) Attendance by age
 *-------------------------------------------------------------------------------
 use "$DAT/CASEN/CASEN2017_extract.dta", clear
 keep if edad<20
@@ -100,40 +189,10 @@ graph export "$OUT/attendance_5_10.eps", replace
 
 
 *-------------------------------------------------------------------------------
-*--- (3) Opening and development internationally
-*-------------------------------------------------------------------------------
-clear all
-import excel using "$DAT/international/UNESCO_school_closures_database.xlsx", firstrow
-
-rename CountryID countrycode
-merge m:1 countrycode using "$DAT/international/GDPpc"
-drop _merge
-merge m:1 countrycode using "$DAT/international/pop"
-bys countrycode: gen n=_n
-encode Region2, gen(Region)
-
-keep if yr2019<100000
-colorpalette viridis, n(7)
-
-graph set eps fontface "Times New Roman"
-graph set window fontface "Times New Roman"
-#delimit ;
-twoway scatter Weeksfullyclose yr2019 if n==1 [aw=Enrolment],
-  colorvar(Region) colordiscrete colorlist(`r(p)')
-coloruseplegend
-plegend(order(- "Region" 7 "SSA" 6 "Asia C/S" 5 "Asia E/SE"
-              4 "LAC" 3 "Europe/NA" 2 "Oceania"  1 "MENA"))
-||   qfit Weeksfullyclose yr2019 if n==1, lcolor(gs12%40) lpattern(solid)
-ytitle("Weeks Fully Closed") xtitle("GDP per capita (2019)") legend(off)
-scheme(stcolor);
-graph export $OUT/schoolCloseGDP.eps, replace;
-#delimit cr
-
-*-------------------------------------------------------------------------------
-*--- (4) Attendance under-reporting tests: currently commented out as data v large
+*--- (5) Attendance under-reporting tests: currently commented out as data v large
 *-------------------------------------------------------------------------------
 foreach month in Octubre Noviembre {
-    import delimited "$DAT/attendance/Asistencia_`month'_2018.csv", encoding(ISO-8859-1) clear
+    use "$DAT/attendance/Asistencia_`month'_2018.dta", clear
     keep if cod_ense==110
     keep if cod_grado==4
     bys mrun: gen nreps=_N
@@ -184,7 +243,7 @@ graph export "$OUT/attendanceSIMCEtime.pdf", replace;
 #delimit cr
 
 
-import delimited "$DAT/attendance/Asistencia_Noviembre_2018.csv", encoding(ISO-8859-1) clear
+use "$DAT/attendance/Asistencia_Noviembre_2018.dta", clear
 keep if cod_ense==110
 keep if cod_grado==4
 
@@ -233,6 +292,76 @@ twoway scatter asistencia_simcemat nalu_mate4b_rbd, mc(black%80) ms(Oh)
 ytitle("Reported Test Day Attendance") xtitle("Observed Test-takers")
 legend(off);
 graph export "$OUT/attendance_2018_simce4mate.pdf", replace;
+#delimit cr
+
+*-------------------------------------------------------------------------------
+*--- (6) Crimes by place
+*-------------------------------------------------------------------------------
+use "$DAT/covid/weeklyCrimesPlace.dta", clear
+
+#delimit ;
+twoway line partesV1_n monday if monday>21556 & week<154 || 
+       line partesV0_n monday if monday>21556 & week<154, 
+xtitle("") xlabel(#13, angle(45)) ylabel(0(25)150)
+ytitle("Formal reporting VIF") xline(21989 22144, lc(red))
+legend(order(1 "Domestic" 2 "Other places") pos(12) col(2));
+graph export "$OUT/partesVif_byplace.eps", replace;
+
+twoway line partesSA1_n monday if monday>21556 & week<154 || 
+       line partesSA0_n monday if monday>21556 & week<154, 
+xtitle("") xlabel(#13, angle(45)) ylabel(0(25)150)
+legend(order(1 "Domestic" 2 "Other places") pos(12) col(2))
+ytitle("Formal reporting Sexual Abuse") xline(21989 22144, lc(red));
+graph export "$OUT/partesSA_byplace.eps", replace;
+
+twoway line partesR1_n monday if monday>21556 & week<154 || 
+       line partesR0_n monday if monday>21556 & week<154, 
+xtitle("") xlabel(#13, angle(45)) ylabel(0(5)40)
+ytitle("Formal reporting Rape") xline(21989 22144, lc(red))
+legend(order(1 "Domestic" 2 "Other places") pos(12) col(2));
+graph export "$OUT/partesR_byplace.eps", replace;
+#delimit cr
+
+gen partesV=partesV0_n+partesV1_n //total partes
+gen p_partesV0=partesV0_n/partesV //proportion 'Other'
+gen p_partesV1=partesV1_n/partesV //proportion 'Domestic'
+gen g1=p_partesV1+p_partesV0      //for rarea plot
+
+#delimit ;
+tw area p_partesV1 monday if monday>21556 & week<154, color(%50) || 
+   rarea p_partesV1 g1 monday if monday>21556 & week<154, color(%50)
+ylabel(0(0.1)1, format(%5.1f)) xlabel(#13, angle(45)) xtitle("")
+ytitle("Proportion") xline(21989 22144, lc(red) lp(solid))
+legend(order(1 "Domestic" 2 "Other places") pos(12) col(2));
+graph export "$OUT/prop_partesV.pdf", replace;
+#delimit cr
+
+gen partesSA=partesSA0_n+partesSA1_n
+gen p_partesSA0=partesSA0_n/partesSA
+gen p_partesSA1=partesSA1_n/partesSA
+gen g2=p_partesSA1+p_partesSA0
+
+#delimit ;
+tw area p_partesSA1 monday if monday>21556 & week<154, color(%50) || 
+   rarea p_partesSA1 g2 monday if monday>21556 & week<154, color(%50)
+ylabel(0(0.1)1, format(%5.1f)) xlabel(#13, angle(45)) xtitle("")
+ytitle("Proportion") xline(21989 22144, lc(red) lp(solid))
+legend(order(1 "Domestic" 2 "Other places") pos(12) col(2));
+graph export "$OUT/prop_partesSA.pdf", replace;
+#delimit cr
+
+gen partesR=partesR0_n+partesR1_n
+gen p_partesR0=partesR0_n/partesR
+gen p_partesR1=partesR1_n/partesR
+gen g3=p_partesR1+p_partesR0
+
+#delimit ;
+tw area p_partesR1 monday if monday>21556 & week<154, color(%50) || 
+   rarea p_partesR1 g3 monday if monday>21556 & week<154, color(%50)
+ylabel(0(0.1)1, format(%5.1f)) xlabel(#13, angle(45)) xtitle("")
+ytitle("Proportion") xline(21989 22144, lc(red) lp(solid))
+legend(order(1 "Domestic" 2 "Other places") pos(12) col(2));
+graph export "$OUT/prop_partesR.pdf", replace;
 #delimit cr
 
 log close

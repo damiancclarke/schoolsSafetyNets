@@ -13,7 +13,6 @@ cap log close
 *-------------------------------------------------------------------------------
 *-- (0) Global and some details
 *-------------------------------------------------------------------------------
-global ROOT "C:/Users/danie/OneDrive/Escritorio/Research/SchoolClosureViolence/"
 global ROOT "~/investigacion/2022/childrenSchools"
 
 global DAT "$ROOT/replication/data"
@@ -148,15 +147,27 @@ gen rate = caso/populationyoung*100000
 gen strikeperiod = (tm>=tm(2011m4) & tm<=tm(2011m12))
 gen popSecondary = population4+population5
 gen popPrimary   = population1+population2+population3
-gen rateSecondary   = (caso4+caso5)/popSecondary*100000
-gen rateVSecondary  = (casoV4+casoV5)/popSecondary*100000
-gen rateSASecondary = (casoSA4+casoSA5)/popSecondary*100000
-gen rateAllSecondary = (caso4+caso5+casoV4+casoV5+casoSA4+casoSA5)/popSecondary*100000
 
-gen ratePrimary   = (caso1+caso2+caso3)/popPrimary*100000
-gen rateVPrimary  = (casoV1+casoV2+casoV3)/popPrimary*100000
-gen rateSAPrimary = (casoSA1+casoSA2+casoSA3)/popPrimary*100000
-gen rateAllPrimary =(caso1+caso2+caso3+casoV1+casoV2+casoV3+casoSA1+casoSA2+casoSA3)/popPrimary*100000
+egen n1 = rowtotal(casoEdad14-casoEdad17)
+egen n2 = rowtotal(casoEdadSA14-casoEdadSA17)
+egen n3 = rowtotal(casoEdadV14-casoEdadV17)
+
+gen rateSecondary   = n1/popSecondary*100000
+gen rateSASecondary = n2/popSecondary*100000
+gen rateVSecondary  = n3/popSecondary*100000
+gen rateAllSecondary = (n1+n2+n3)/popSecondary*100000
+drop n1 n2 n3
+
+egen n1 = rowtotal(casoEdad1-casoEdad9 casoEdad10-casoEdad13)
+egen n2 = rowtotal(casoEdadSA1-casoEdadSA9 casoEdadSA10-casoEdadSA13)
+egen n3 = rowtotal(casoEdadV1-casoEdadV9 casoEdadV10-casoEdadV13)
+
+gen ratePrimary   = n1/popPrimary*100000
+gen rateVPrimary  = n2/popPrimary*100000
+gen rateSAPrimary = n3/popPrimary*100000
+gen rateAllPrimary =(n1+n2+n3)/popPrimary*100000
+drop n1 n2 n3
+
 
 gen rateDif   = rateSecondary-ratePrimary
 gen rateVDif  = rateVSecondary-rateVPrimary
@@ -255,10 +266,16 @@ lab var strikeXduring_sin "Strike Intensity $\times$ Strike"
 #delimit ;
 estout est1 est2 est3 est4 using "$TAB/strikesMain.tex", replace
 cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikeXduring_sin) style(tex)
-stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %05.2f )
-      labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\  Var."))
+stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %5.2f )
+      labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\ Var."))
 starlevels(* 0.10 ** 0.05 *** 0.01) label
 mlabels(none) collabels(none);
+
+esttab est1 est2 est3 est4 using "$TAB/strikesMain.csv", replace
+cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikeXduring_sin)
+stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %5.2f )
+      labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep. Var."))
+starlevels(* 0.10 ** 0.05 *** 0.01) label mlabels(none) collabels(none);
 #delimit cr
 estimates clear
 
@@ -289,22 +306,22 @@ sum strike_sin
 local sd=r(sd)
 local wt    [aw=popS]
 eststo: reghdfe rateAllDif strikeXduring_sin  `conts' `wt', `opts'
-sum rateAllDif if e(sample)==1
+sum rateAllSecondary if e(sample)==1
 estadd scalar mean=r(mean)
 estadd scalar effect = _b[strikeXduring_sin]*`sd'
 
 eststo: reghdfe rateDif    strikeXduring_sin  `conts' `wt', `opts'
-sum rateDif if e(sample)==1
+sum rateSecondary if e(sample)==1
 estadd scalar mean=r(mean)
 estadd scalar effect = _b[strikeXduring_sin]*`sd'
 
 eststo: reghdfe rateSADif  strikeXduring_sin  `conts' `wt', `opts'
-sum rateSADif if e(sample)==1
+sum rateSASecondary if e(sample)==1
 estadd scalar mean=r(mean)
 estadd scalar effect = _b[strikeXduring_sin]*`sd'
 
 eststo: reghdfe rateVDif   strikeXduring_sin  `conts' `wt', `opts'
-sum rateVDif if e(sample)==1
+sum rateVSecondary if e(sample)==1
 estadd scalar mean=r(mean)
 estadd scalar effect = _b[strikeXduring_sin]*`sd'
 
@@ -318,7 +335,7 @@ lab var strikeXduring_sin "Strike Intensity $\times$ Strike"
 #delimit ;
 estout est1 est2 est3 est4 using "$TAB/strikesTripleDiff.tex", replace
 cells(b(fmt(a3) star) se(par fmt(a3))) keep(strikeXduring_sin) style(tex)
-stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %05.2f )
+stats(N r2 effect mean, fmt(%12.0gc %04.2f %05.2f %5.2f )
       labels("\\ Observations" "R-squared" "Scaled Effect" "Mean Dep.\  Var."))
 starlevels(* 0.10 ** 0.05 *** 0.01) label
 mlabels(none) collabels(none);

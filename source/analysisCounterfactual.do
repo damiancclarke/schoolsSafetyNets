@@ -4,13 +4,14 @@
 DONE
 
 */
+
+vers 16
 clear all
 set more off
 
 *-------------------------------------------------------------------------------
 *Global and some details
 *-------------------------------------------------------------------------------
-*global ROOT "C:/Users/danie/OneDrive/Escritorio/replication/"
 global ROOT "/home/`c(username)'/investigacion/2022/childrenSchools/replication"
 
 
@@ -23,7 +24,9 @@ cap mkdir "$OUT"
 cap log close
 log using "$LOG/analysisCounterfactual.txt", text replace
 
-set scheme plotplainblind, permanently
+// Ensure plotplainblind is avaialble for identical format
+//  can be installed with ssc install blindschemes
+set scheme plotplainblind
 graph set window fontface "Times New Roman"
 
 *-------------------------------------------------------------------------------

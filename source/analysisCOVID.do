@@ -1,51 +1,37 @@
-/* AnalysisCOVID.do                  DanielPailanir          yyyy-mm-dd:2021-12-17
+/* AnalysisCOVID.do        DanielPailanir/damiancclarke     yyyy-mm-dd:2021-12-17
 *----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
-This was previously:
- childrenSchools/source/AnalysisSchoolClosure
 
 
 */
-*sysdir set PLUS "C:\Users\danie\ado\plus"
+
 clear all
 set more off
 
 *-------------------------------------------------------------------------------
 * (0) Globals and some details
 *-------------------------------------------------------------------------------
-global ROOT "C:/Users/danie/OneDrive/Escritorio/Research/SchoolClosureViolence/"
-local name `=c(username)'
 global ROOT "/home/`name'/investigacion/2022/childrenSchools/replication/"
 
 global DAT "$ROOT/data"
-global GRA "$ROOT/results/graphs"
-global OUT "$ROOT/results/reg"
-global LOG "$ROOT/results/log"
+global OUT "$ROOT/results/figures/covid"
+global TAB "$ROOT/results/tables"
+global LOG "$ROOT/log"
+
+cap mkdir "$OUT"
 
 set scheme plotplainblind, permanently
 graph set window fontface "Times New Roman"
+
 cap log close
 log using "$LOG/analysisCOVID.txt", text replace
 
 
-local data SchoolClosure_Final_RR_28092024.dta
-local data SchoolClosure_Final_RR_01102024.dta
-
-
-
+local data SchoolClosure_main.dta
 
 
 *-------------------------------------------------------------------------------
 * (1) Set up a small number of auxiliary files
 *-------------------------------------------------------------------------------
-// Population
-use $DAT/`data'
-keep comuna year population*
-bys comuna year: gen N=_n
-keep if N==1
-rename comuna com_cod
-save "$DAT/populationYear", replace
-
-
 // Vaccines
 insheet using "$DAT/covid/vacunacion_comuna_fecha_all_2daDosis_fagonza.csv", clear
 reshape long v, i(region cod_region comuna cod_comuna poblacion) j(d)
@@ -87,18 +73,58 @@ lwidth(thick) ylabel(, labsize(medium))
 xlabel(#13, angle(45) labsize(medium))
 xline(21989, lc(red)) xline(22144, lc(red))
 xtitle("");
-graph export "$GRA/vaccines.eps", replace;
+graph export "$OUT/vaccines.eps", replace;
 #delimit cr
-
-
-
-
 
 *-------------------------------------------------------------------------------
 *--- (1) Descriptive Figures
 *-------------------------------------------------------------------------------
 use $DAT/`data', clear
-merge m:1 comuna using "$DAT/attendance", gen(_mergeAttend)
+merge m:1 comuna using "$DAT/attendance/attendance_postPandemic", gen(_mergeAttend)
+
+preserve
+collapse (sum) caso* VIF* (mean) monday, by(week)
+
+*DV, Sexual Abuse and Rape
+#delimit ;
+twoway line caso monday  if week<157
+    || line VIF_1 monday if week<157
+    || line VIF_2 monday if week<157
+    || line VIF_3 monday if week<157, 
+xtitle("") xlabel(#25, angle(45)) xline(21989 22144, lc(red))
+ytitle("Formal reporting violence") ylabel(0(50)300)
+legend(order(1 "Total VIF" 2 "Psychological" 3 "Minor injuries" 
+             4 "Serious injuries") pos(12) col(4));
+graph export "$OUT/VIFreportAll.eps", replace;
+
+twoway line casoSA monday if week<154&week>-467, xtitle("") xline(21989 22144, lc(red))
+xlabel(#25, angle(45)) ylabel(0(25)150) ytitle("Formal reporting sexual abuse");
+graph export "$OUT/VIFreportAll_SA.eps", replace;
+
+twoway line casoV monday if week<154&week>-467, xtitle("") xlabel(#25, angle(45))
+ylabel(0(5)35) xline(21989 22144, lc(red)) ytitle("Formal reporting rape");
+graph export "$OUT/VIFreportAll_R.eps", replace;
+#delimit cr
+
+#delimit ;
+twoway line casoSA_old monday if monday>21556 & week<154, lc(gs10) lp(dash) ||
+       line casoSA monday if monday>21556 & week<154, lc(black) lp(solid) 
+xtitle("") xline(21989 22144, lc(red)) ylabel(0(25)225)
+ytitle("Formal reporting of Sexual Abuse") xlabel(#13, angle(45))
+legend(order(1 "Observed values" 2 "Adjusted values") pos(6) col(2));
+graph export "$OUT/SAbusereport_2lines.eps", replace;
+
+twoway line casoV_old monday if monday>21556 & week<154, lc(gs10) lp(dash) ||
+       line casoV monday if monday>21556 & week<154, lc(black) lp(solid) 
+xtitle("") xline(21989 22144, lc(red)) ylabel(0(5)55)
+ytitle("Formal reporting of Rape") xlabel(#13, angle(45))
+legend(order(1 "Observed values" 2 "Adjusted values") pos(6) col(2));
+graph export "$OUT/Rapereport_2lines.eps", replace;
+#delimit cr
+
+
+restore
+exit
 
 local ccd if monday==22614&Attendance1<1
 local lc lcolor(gs12) fcolor(pink%30)
@@ -113,7 +139,7 @@ ytitle("Post-pandemic attendance", size(medlarge))
 xtitle("Pre-pandemic attendance", size(medlarge))
 text(0.7 0.88 "{&rho}=0.363", placement(e))
 text(0.635 0.92 "(p<0.001)", placement(e) size(small));
-graph export "$GRA/attendanceComp.pdf", replace;
+graph export "$OUT/attendanceComp.pdf", replace;
 #delimit cr
 
 
@@ -139,21 +165,21 @@ ylabel(0(50)250, labsize(medium)) xlabel(#13, angle(45) labsize(medium))
 xline(21989 22144, lc(red)) ytitle("Formal reporting violence", size(medlarge)) 
 legend(order(3 "Psychological" 2 "Minor injuries" 1 "Serious injuries") 
        pos(12) col(4)) xtitle("");
-graph export "$GRA/VIFreport_byClass.pdf", replace;
+graph export "$OUT/VIFreport_byClass.pdf", replace;
 
 twoway line casoSA monday if monday>21556 & week<154, lwidth(thick)
 xlabel(#13, angle(45) labsize(medium)) 
 xtitle("") xline(21989, lc(red)) xline(22144, lc(red)) 
 ylabel(0(25)150, labsize(medium))
 ytitle("Formal reporting Sexual Abuse", size(medlarge));
-graph export "$GRA/SAbusereport.eps", replace;
+graph export "$OUT/SAbusereport.eps", replace;
 
 twoway line casoV monday if monday>21556 & week<154, lwidth(thick)
 xlabel(#13, angle(45) labsize(medium)) 
 xtitle("") xline(21989 22144, lc(red)) 
 ytitle("Formal reporting Rape", size(medlarge))
 ylabel(0(5)30, labsize(medium));
-graph export "$GRA/Rapereport.eps", replace;
+graph export "$OUT/Rapereport.eps", replace;
 
 gen AllReport = caso+casoSA+casoV;
 twoway line AllReport monday if monday>21556 & week<154, lwidth(thick)
@@ -161,7 +187,7 @@ xlabel(#13, angle(45) labsize(medium))
 xtitle("") xline(21989 22144, lc(red)) 
 ytitle("Total Formal reporting", size(medlarge))
 ylabel(0(50)400, labsize(medium));
-graph export "$GRA/Allreport.eps", replace;
+graph export "$OUT/Allreport.eps", replace;
 
 
 twoway connected quarantine monday if monday>21556, yaxis(1) lwidth(thick)
@@ -173,7 +199,7 @@ xlabel(#13, angle(45) labsize(medium))  ylabel(, labsize(medium))
 ylabel(, labsize(medium) axis(2)) xline(21989 22144, lc(red))
 legend(order(1 "Municipalities" 2 "Population") col(2) pos(11) ring(0) colg(1pt) 
 bm(zero) keyg(.8pt) size(small) region(lcolor(gs8))) xtitle("");
-graph export "$GRA/quarantine.eps", replace;
+graph export "$OUT/quarantine.eps", replace;
 
 twoway line prop_schools_i monday if monday<21990&week>0, lwidth(thick)
 ||     line prop_schools_i monday if monday>=21990&monday<22265&week>0, 
@@ -185,7 +211,7 @@ lwidth(thick) ylabel(, format(%9.1f) labsize(medium))
 xlabel(#13, angle(45) format(%td) labsize(medium)) xline(21989, lc(red)) 
 xline(22144, lc(red)) xtitle("") ytitle("Proportion of schools open", size(medlarge)) 
 legend(off);
-graph export "$GRA/prop_school.eps", replace;
+graph export "$OUT/prop_school.eps", replace;
 #delimit cr
 restore
 
@@ -213,7 +239,7 @@ xlabel(90 "15 Sep, 2020" 100 "24 Nov, 2020" 110 "2 Feb, 2021"
        150 "9 Nov, 2021")
 legend(order(1 "Private Schools" 2 "Municipal Schools" 3 "Priority Students")
        pos(1) rows(1) ring(0));
-graph export "$GRA/schooolsReturn.eps", replace;
+graph export "$OUT/schooolsReturn.eps", replace;
 #delimit cr
 restore
 
@@ -223,7 +249,7 @@ preserve
 *COVID cases graph
 // Originally from now removed github: 
 // local GIT "https://raw.githubusercontent.com/MinCiencia/Datos-COVID19/master/output/"
-import delimited "$DAT/TotalesNacionales.csv", clear
+import delimited "$DAT/covid/TotalesNacionales.csv", clear
 keep fecha-v660
 
 forvalues i=2/660 {
@@ -272,16 +298,15 @@ twoway line NewTotalCases t, yaxis(1) lwidth(thick)
   ylabel(, labsize(medium) axis(2)) xline(21989, lc(red)) xline(22144, lc(red))  
   legend(order(1 "Total Cases" 2 "Total Deaths") pos(1) ring(0) col(2) 
   colg(1pt) bm(zero) keyg(.8pt) size(small) region(lcolor(gs8))) xtitle("");
-graph export "$GRA/COVID.eps", replace;
+graph export "$OUT/COVID.eps", replace;
 #delimit cr
 restore
-
 
 *-------------------------------------------------------------------------------
 *--- (2) Fixed effect tables
 *-------------------------------------------------------------------------------
 use $DAT/`data', clear
-merge m:1 comuna using "$DAT/attendance", gen(_mergeAttend)
+merge m:1 comuna using "$DAT/attendance/attendance_postPandemic", gen(_mergeAttend)
 drop if _mergeAttend==2
 merge 1:1 comuna monday using `vaccines', keep(1 3)
 drop _merge
@@ -289,7 +314,7 @@ replace vaccines=0 if vaccines == .
 
 gen cod_com_rbd = comuna
 preserve
-use "$DAT/doc_asist_2016_22.dta", clear
+use "$DAT/attendance/doc_asist_2016_22.dta", clear
 
 #delimit ;
 local c1 8401  8402  8403  8404  8405  8406  8407  8408  8409  8410  8411  
@@ -335,7 +360,7 @@ ytitle("Post-pandemic School Assistant Coverage", size(medlarge))
 xtitle("Pre-pandemic School Assistant Coverage", size(medlarge))
 text(50 65 "{&rho}=0.918", placement(e))
 text(46 66 "(p<0.001)", placement(e) size(small));
-graph export "$GRA/asistentesComp.pdf", replace;
+graph export "$OUT/asistentesComp.pdf", replace;
 
 local ccd if monday==22614&experienceAsistentesBaseline<=9;
 twoway lfitci experiencia_asistente_ee experienceA `ccd', `lc' ||
@@ -346,7 +371,7 @@ ytitle("Post-pandemic School Assistant Experience", size(medlarge))
 xtitle("Pre-pandemic School Assistant Experience", size(medlarge))
 text(5.6 7.4 "{&rho}=0.936", placement(e))
 text(5   7.5 "(p<0.001)", placement(e) size(small));
-graph export "$GRA/asistentesExpComp.pdf", replace;
+graph export "$OUT/asistentesExpComp.pdf", replace;
 #delimit cr
 
 
@@ -362,7 +387,7 @@ ytitle("Post-pandemic Formal Employment Rate", size(medlarge))
 xtitle("Pre-pandemic Formal Employment Rate", size(medlarge))
 text(0.38 0.4 "{&rho}=0.956", placement(e))
 text(0.35 0.404 "(p<0.001)", placement(e) size(small));
-graph export "$GRA/employmentComp.pdf", replace;
+graph export "$OUT/employmentComp.pdf", replace;
 #delimit cr
 
 
@@ -409,28 +434,38 @@ foreach v of local varr {
 }
 *PANEL A
 #delimit ;
-esttab V_1_d V_2_d V_3_d SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d, 
-       keep(SchoolClose2 SchoolOpen_i) b(%-9.4f) se(%-9.4f) noobs;
 esttab V_1_d V_2_d V_3_d SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d 
-       using "$OUT/panelA.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelA.tex", b(%-9.3f) se(%-9.3f) noobs
        keep(SchoolClose2 SchoolOpen_i) nonotes nogaps mlabels(, none)
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
        nonumbers style(tex) starlevel ("*" 0.10 "**" 0.05 "***" 0.01) 
        fragment replace noline label;
+esttab V_1_d V_2_d V_3_d SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d 
+       using "$TAB/panelA.csv", b(%-9.3f) se(%-9.3f) noobs
+       keep(SchoolClose2 SchoolOpen_i) nonotes nogaps mlabels(, none)
+       stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
+           label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
+       nonumbers starlevel ("*" 0.10 "**" 0.05 "***" 0.01) 
+       fragment replace noline label;
 #delimit cr
 
 *PANEL B
 #delimit ;
-esttab V_1_c V_2_c V_3_c SA_1_c SA_2_c SA_3_c R_1_c R_2_c R_3_c, 
-       keep(SchoolClose2 prop_schools_i) b(%-9.4f) se(%-9.4f) noobs;
 esttab V_1_c V_2_c V_3_c SA_1_c SA_2_c SA_3_c R_1_c R_2_c R_3_c 
-       using "$OUT/panelB.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelB.tex", b(%-9.3f) se(%-9.3f) noobs
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
        keep(SchoolClose2 prop_schools_i) nonotes nogaps mlabels(, none) 
        nonumbers style(tex) starlevel ("*" 0.10 "**" 0.05 "***" 0.01) 
        fragment replace noline label;
+esttab V_1_c V_2_c V_3_c SA_1_c SA_2_c SA_3_c R_1_c R_2_c R_3_c 
+       using "$TAB/panelB.csv", b(%-9.3f) se(%-9.3f) noobs
+       stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
+           label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
+       keep(SchoolClose2 prop_schools_i) nonotes nogaps mlabels(, none) 
+       nonumbers starlevel ("*" 0.10 "**" 0.05 "***" 0.01) 
+       fragment replace noline label;       
 #delimit cr
 estimates clear
 
@@ -467,7 +502,7 @@ foreach v of local varr {
 *PANEL A
 #delimit ;
 esttab SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d
-       using "$OUT/panelA_unadj.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelA_unadj.tex", b(%-9.3f) se(%-9.3f) noobs
        keep(SchoolClose2 SchoolOpen_i) nonotes nogaps mlabels(, none)
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
@@ -478,7 +513,7 @@ esttab SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d
 *PANEL B
 #delimit ;
 esttab SA_1_c SA_2_c SA_3_c R_1_c R_2_c R_3_c
-       using "$OUT/panelB_unadj.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelB_unadj.tex", b(%-9.3f) se(%-9.3f) noobs
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
        keep(SchoolClose2 prop_schools_i) nonotes nogaps mlabels(, none) 
@@ -523,7 +558,7 @@ foreach v of local varr {
 *PANEL A
 #delimit ;
 esttab V_1_d V_2_d V_3_d SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d 
-       using "$OUT/panelA_novacation.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelA_novacation.tex", b(%-9.3f) se(%-9.3f) noobs
        keep(SchoolClose2 SchoolOpen_i) nonotes nogaps mlabels(, none)
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
@@ -534,7 +569,7 @@ esttab V_1_d V_2_d V_3_d SA_1_d SA_2_d SA_3_d R_1_d R_2_d R_3_d
 *PANEL B
 #delimit ;
 esttab V_1_c V_2_c V_3_c SA_1_c SA_2_c SA_3_c R_1_c R_2_c R_3_c 
-       using "$OUT/panelB_novacation.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelB_novacation.tex", b(%-9.3f) se(%-9.3f) noobs
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
        keep(SchoolClose2 prop_schools_i) nonotes nogaps mlabels(, none) 
@@ -573,7 +608,7 @@ foreach v of local varr {
 *PANEL A
 #delimit ;
 esttab V3_1_d V3_2_d V3_3_d V2_1_d V2_2_d V2_3_d V1_1_d V1_2_d V1_3_d 
-       using "$OUT/panelA_bycause.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelA_bycause.tex", b(%-9.3f) se(%-9.3f) noobs
        keep(SchoolClose2 SchoolOpen_i) nonotes nogaps mlabels(, none)
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
@@ -584,7 +619,7 @@ esttab V3_1_d V3_2_d V3_3_d V2_1_d V2_2_d V2_3_d V1_1_d V1_2_d V1_3_d
 *PANEL B
 #delimit ;
 esttab V3_1_c V3_2_c V3_3_c V2_1_c V2_2_c V2_3_c V1_1_c V1_2_c V1_3_c 
-       using "$OUT/panelB_bycause.tex", b(%-9.3f) se(%-9.3f) noobs
+       using "$TAB/panelB_bycause.tex", b(%-9.3f) se(%-9.3f) noobs
        stats(pval N mean, fmt(%04.3f %9.0gc %05.3f)
            label("\\ Test of $\beta=\gamma$ (p-value)" "Observations" "Baseline Mean"))
        keep(SchoolClose2 prop_schools_i) nonotes nogaps mlabels(, none) 
@@ -624,94 +659,24 @@ gen OpenDev         = ZDev*SchoolOpen_i
 gen OpenEmp         = ZEmp*SchoolOpen_i
 gen OpenSup         = ZSup*SchoolOpen_i
 
-
 gen CloseAtt         = ZAtt*SchoolClose2
 gen CloseDev         = ZDev*SchoolClose2
 gen CloseEmp         = ZEmp*SchoolClose2
 gen CloseSup         = ZSup*SchoolClose2
 
-
-lab var SchoolClose2 "School Closure"
-lab var SchoolOpen_i "School Reopening"
-lab var OpenAtt      "School Reopening $\times$ Attendance (Z)"
-lab var OpenDev      "School Reopening $\times$ Development (Z)"
-lab var OpenEmp      "School Reopening $\times$ Employment (Z)"
-lab var OpenSup      "School Reopening $\times$ Support (Z)"
-
-local controls quarantine caseRate pcr positivity privado vulnerable prioritario
-//school support system
-
-estimates clear
-foreach v of local varr {
-    
-    eststo: reg `v' `indvar1' OpenAtt `controls' i.w `cond', `opt2'
-    eststo: reg `v' `indvar1' OpenDev `controls' i.w `cond', `opt2'    
-    eststo: reg `v' `indvar1' OpenEmp `controls' i.w `cond', `opt2'
-    eststo: reg `v' `indvar1' OpenSup `controls' i.w `cond', `opt2'
-    
-    eststo: reg `v' `indvar1' OpenAtt OpenDev OpenEmp OpenSup `controls' i.w `cond', `opt2'
-
-    #delimit ;
-    esttab est1 est2 est3 est4 est5 
-    using "$OUT/interactionsMun_`v'.tex", style(tex)  replace
-    keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup) b(%-9.3f) se(%-9.3f)
-    nonotes nogaps mlabels(, none) nonumbers
-    starlevel ("*" 0.10 "**" 0.05 "***" 0.01)
-    fragment  noline label;
-    #delimit cr
-    estimates clear
-}
-
-
 egen totals = rowtotal(caso casoSA casoV)
 gen  totalRate = totals/populationyoung*100000
-local controls quarantine caseRate pcr positivity privado vulnerable prioritario
-eststo: reg totalRate  `indvar1' OpenAtt `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenDev `controls' i.w `cond', `opt2'    
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenEmp `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenSup `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-
-
-eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp OpenSup `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-
-lab var SchoolClose2 "School Closure"
-lab var SchoolOpen_i "School Reopening"
-lab var OpenAtt      "School Reopening$\times$ Baseline Attendance (Z)"
-lab var OpenDev      "School Reopening$\times$ Baseline Development (Z)"
-lab var OpenEmp      "School Reopening$\times$ Baseline Employment (Z)"
-lab var OpenSup      "School Reopening$\times$ Baseline Support (Z)"
-
-#delimit ;
-esttab est1 est2 est3 est4 est5 using "$OUT/interactionsMunTot.tex",
-style(tex)  replace
-keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup) b(%-9.3f) se(%-9.3f)
-nonotes nogaps mlabels(, none) nonumbers 
-starlevel ("*" 0.10 "**" 0.05 "***" 0.01)
-stats(mean N, fmt(%4.2f %10.0gc) label("\\ Baseline Mean" "Observations"))
-fragment  noline label;
-#delimit cr
-
-esttab est1 est2 est3 est4 est5,  keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup)
-estimates clear
-
 
 
 
 local controls quarantine caseRate pcr positivity 
-eststo: reg totalRate  `indvar1' OpenAtt `controls' i.w `cond', `opt2'
+local regopts `controls' i.w `cond', `opt2'
+
+
+eststo: reg totalRate  `indvar1' OpenAtt `regopts'
 sum totalRate if year<2020
 estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp `controls' i.w `cond', `opt2'
+eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp `regopts'
 sum totalRate if year<2020
 estadd scalar mean=r(mean) 
 
@@ -719,12 +684,12 @@ estadd scalar mean=r(mean)
 eststo: reg totalRate  `indvar1' OpenSup `controls' i.w `cond', `opt2'
 sum totalRate if year<2020
 estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenSup OpenDev OpenEmp `controls' i.w `cond', `opt2'
+eststo: reg totalRate  `indvar1' OpenSup OpenDev OpenEmp `regopts'
 sum totalRate if year<2020
 estadd scalar mean=r(mean) 
 
 
-eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp OpenSup `controls' i.w `cond', `opt2'
+eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp OpenSup `regopts'
 sum totalRate if year<2020
 estadd scalar mean=r(mean) 
 
@@ -736,64 +701,20 @@ lab var OpenEmp      "School Reopening$\times$ Baseline Employment (Z)"
 lab var OpenSup      "School Reopening$\times$ Baseline Support (Z)"
 
 #delimit ;
-esttab est1 est2 est3 est4 est5 using "$OUT/interactionsMunTot_spec.tex",
-style(tex)  replace
+esttab est1 est2 est3 est4 est5 using "$TAB/interactionsMunTot_spec.tex",
 keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup) b(%-9.3f) se(%-9.3f)
 nonotes nogaps mlabels(, none) nonumbers order(`indvar1' OpenAtt OpenSup)
-starlevel ("*" 0.10 "**" 0.05 "***" 0.01)
+starlevel ("*" 0.10 "**" 0.05 "***" 0.01) style(tex) replace
+stats(mean N, fmt(%4.2f %10.0gc) label("\\ Baseline Mean" "Observations"))
+fragment  noline label;
+
+esttab est1 est2 est3 est4 est5 using "$TAB/interactionsMunTot_spec.csv",
+keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup) b(%-9.3f) se(%-9.3f)
+nonotes nogaps mlabels(, none) nonumbers order(`indvar1' OpenAtt OpenSup)
+starlevel ("*" 0.10 "**" 0.05 "***" 0.01) replace
 stats(mean N, fmt(%4.2f %10.0gc) label("\\ Baseline Mean" "Observations"))
 fragment  noline label;
 #delimit cr
-
-esttab est1 est2 est3 est4 est5,  keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup)
-estimates clear
-
-
-
-local controls quarantine caseRate pcr positivity 
-eststo: reg totalRate  `indvar1' OpenAtt CloseAtt `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp CloseAtt CloseDev CloseEmp `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-
-
-eststo: reg totalRate  `indvar1' OpenSup CloseSup `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-eststo: reg totalRate  `indvar1' OpenSup OpenDev OpenEmp CloseSup CloseDev CloseEmp `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-
-
-eststo: reg totalRate  `indvar1' OpenAtt OpenDev OpenEmp OpenSup CloseAtt CloseDev CloseEmp CloseSup `controls' i.w `cond', `opt2'
-sum totalRate if year<2020
-estadd scalar mean=r(mean) 
-
-lab var SchoolClose2 "School Closure"
-lab var SchoolOpen_i "School Reopening"
-lab var OpenAtt      "School Reopening$\times$ Baseline Attendance (Z)"
-lab var OpenDev      "School Reopening$\times$ Baseline Development (Z)"
-lab var OpenEmp      "School Reopening$\times$ Baseline Employment (Z)"
-lab var OpenSup      "School Reopening$\times$ Baseline Support (Z)"
-lab var CloseAtt     "School Closure$\times$ Baseline Attendance (Z)"
-lab var CloseDev     "School Closure$\times$ Baseline Development (Z)"
-lab var CloseEmp     "School Closure$\times$ Baseline Employment (Z)"
-lab var CloseSup     "School Closure$\times$ Baseline Support (Z)"
-
-#delimit ;
-esttab est1 est2 est3 est4 est5 using "$OUT/interactionsMunTot_both_spec.tex",
-style(tex)  replace
-keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup CloseAtt CloseDev CloseEmp CloseSup) 
-b(%-9.3f) se(%-9.3f) nonotes nogaps mlabels(, none) nonumbers 
-order(`indvar1' OpenAtt OpenSup CloseAtt CloseSup)
-starlevel ("*" 0.10 "**" 0.05 "***" 0.01)
-stats(mean N, fmt(%4.2f %10.0gc) label("\\ Baseline Mean" "Observations"))
-fragment  noline label;
-#delimit cr
-
-esttab est1 est2 est3 est4 est5,  keep(`indvar1' OpenAtt OpenDev OpenEmp OpenSup CloseAtt CloseDev CloseEmp CloseSup)
 estimates clear
 
 
@@ -810,7 +731,7 @@ lab var rateV     "Rape"
 #delimit ;
 local PA rate rateVIF3 rateVIF2 rateVIF1 rateSA rateV;
 estpost sum `PA' if year>=2019;
-estout using "$OUT/summaryPA.tex", replace label  mlabels(,none) collabels(,none)
+estout using "$TAB/summaryPA.tex", replace label  mlabels(,none) collabels(,none)
 cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") style(tex);
 
 lab var attendAll   "Baseline Attendance";
@@ -821,16 +742,20 @@ lab var prioritario "Composition of Students (priority)";
 
 local PB SchoolClose2 SchoolOpen_i prop_schools_i attendAll baseSupport privado vulnerable prioritario;
 estpost sum `PB' if year>=2019;
-estout using "$OUT/summaryPB.tex", replace label mlabels(,none) collabels(,none)
+estout using "$TAB/summaryPB.tex", replace label mlabels(,none) collabels(,none)
 cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") style(tex);
 
+lab var quarantine "Quarantine in place";
+lab var caseRate   "COVID cases per 1,000";
+lab var pcr        "PCR tests per 1,000";
+lab var positivity "PCR test positivity";
 lab var p_comunal_h "Proportion of adults in formal employment";
-lab var vaccines    "COVID-19 vaccination rate";
+lab var vaccines    "COVID-19 vaccinations administered";
 
 
 local PC quarantine caseRate pcr positivity vaccines p_comunal_h populationyoung;
 estpost sum `PC' if year>=2019;
-estout using "$OUT/summaryPC.tex", replace label mlabels(,none) collabels(,none)
+estout using "$TAB/summaryPC.tex", replace label mlabels(,none) collabels(,none)
 cells("count() mean(fmt(2)) sd(fmt(2)) min(fmt(2)) max(fmt(2))") style(tex);
 #delimit cr
 
@@ -886,11 +811,6 @@ foreach l of numlist 0(1)20 {
 }
 
 
-
-//xtitle("Weeks Relative to Schools Close")
-//xlabel(-60 "{&le} 15/01/2019" -50 "-50" -40 "-40" -30 "-30"
-//-20 "-20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5" 10 "10"
-//15 "15" 20 "{&ge} 20")
 local yl = 4
 foreach v of local varr {
     if `"`v'"'=="rate" {
@@ -917,7 +837,7 @@ foreach v of local varr {
                     0 "10 Mar 20" 10 "19 May 20"
                     20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
              xtitle(""));
-    graph export "$GRA/eventdd_noControls_`v'.eps", replace;
+    graph export "$OUT/eventdd_noControls_`v'.eps", replace;
     #delimit cr
     //Comparison event study
     gen BETAv = .
@@ -954,7 +874,7 @@ foreach v of local varr {
     legend(order(4 "Criminal Complaints" 3 "95% CI" 2 "COVID cases" 1 "95% CI")
            pos(1) ring(0) rows(1));
     #delimit cr
-    graph export "$GRA/eventJoint_close_`v'.pdf", replace
+    graph export "$OUT/eventJoint_close_`v'.pdf", replace
     drop BETAv UBv LBv 
     
     *(3) week and comuna fe, quarantine control
@@ -969,7 +889,7 @@ foreach v of local varr {
                     0 "10 Mar 20" 10 "19 May 20"
                     20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
              xtitle(""));
-    graph export "$GRA/eventdd_QuarantineControls_`v'.eps", replace;
+    graph export "$OUT/eventdd_QuarantineControls_`v'.eps", replace;
     #delimit cr
 
     *(4) COVID controls, quarantine control
@@ -985,27 +905,10 @@ foreach v of local varr {
                     0 "10 Mar 20" 10 "19 May 20"
                     20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
              xtitle(""));
-    graph export "$GRA/eventdd_COVIDControls_`v'.eps", replace;
+    graph export "$OUT/eventdd_COVIDControls_`v'.eps", replace;
     #delimit cr		
-    		
-    *(5) COVID controls, quarantine control, mobility control
-    local controls caseRate pcr positivity quarantine movilidad2 p_comunal_m p_comunal_h
-    #delimit ;
-    eventdd `v' i.comuna `base' `controls' `cond',  baseline(`b')
-    timevar(timeToClose) cluster(comuna) lags(20) leads(60) accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medium))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-60 "{&le} 15 Jan 19" -50 "20 Mar 19" -40 "4 Jun 19"
-                    -30 "13 Aug 19" -20 "22 Oct 19" -10 "31 Dec 19"
-                    0 "10 Mar 20" 10 "19 May 20"
-                    20 "{&ge} 28 Jul 20", angle(45) labsize(medium))
-             xtitle(""));
-    graph export "$GRA/eventdd_mobility_`v'.eps", replace;
-    #delimit cr
 }
-
-drop LB UB TIME BETA LBq UBq BETAq lag* lead*
+drop LB UB TIME BETA lag* lead*
 
 gen monthsToClose = month-tm(2020m3)
 foreach v of varlist rate rateSA rateV {
@@ -1031,7 +934,7 @@ foreach v of varlist rate rateSA rateV {
              xlabel(-14 "{&le} Jan 2019" -10 "May 2019" -5 "Oct 2019"
                     0 "Mar 2020" 5 "Aug 2020" 10 "{&ge} Jan 2021",
                     labsize(medium) angle(15)  ));
-    graph export "$GRA/eventdd_month_`v'.eps", replace;
+    graph export "$OUT/eventdd_month_`v'.eps", replace;
     #delimit cr
 }
 
@@ -1076,8 +979,6 @@ foreach l of numlist 0(1)40 {
     qui replace UB   = _b[lag`l']+1.96*_se[lag`l'] in `j'
     local ++j
 }
-twoway rarea LB UB TIME, color(gs10%50) || scatter BETA TIME, mc(red%70)
-graph export "$GRA/eventCOVID_open.pdf", replace
 
 local varr rate rateSA rateV
 local base w1-w51 
@@ -1099,7 +1000,7 @@ foreach v of local varr {
              ytitle("Criminal Complaints per 100,000", size(medlarge)) 
              xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
                     10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_noControls_`v'.eps", replace;
+    graph export "$OUT/eventdd2_noControls_`v'.eps", replace;
     #delimit cr
 
     //Comparison event study
@@ -1136,7 +1037,7 @@ foreach v of local varr {
     legend(order(4 "Criminal Complaints" 3 "95% CI" 2 "COVID cases" 1 "95% CI")
            pos(1) ring(0) rows(1));
     #delimit cr
-    graph export "$GRA/eventJoint_open_`v'.pdf", replace
+    graph export "$OUT/eventJoint_open_`v'.pdf", replace
     drop BETAv UBv LBv 
     //End
     
@@ -1150,7 +1051,7 @@ foreach v of local varr {
              ytitle("Criminal Complaints per 100,000", size(medlarge)) 
              xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
                     10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_QuarantineControls_`v'.eps", replace;
+    graph export "$OUT/eventdd2_QuarantineControls_`v'.eps", replace;
     #delimit cr
 
     *(4) COVID controls, quarantine and epi controles
@@ -1164,22 +1065,8 @@ foreach v of local varr {
              ytitle("Criminal Complaints per 100,000", size(medlarge)) 
              xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
                     10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_COVIDControls_`v'.eps", replace;
-    #delimit cr		
-    		
-    *(5) COVID controls, quarantine control, mobility control
-    local controls caseRate pcr positivity quarantine movilidad2 p_comunal_m p_comunal_h
-    #delimit ;
-    eventdd `v' i.comuna `base' `controls' `cond',
-    timevar(timeToOpen) cluster(comuna) lags(40) leads(`leads') accum
-    endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
-    graph_op(legend(off) ylabel(#10, format(%9.1f) labsize(medum))
-             xtitle("Weeks Relative to Schools Reopening", size(medlarge))
-             ytitle("Criminal Complaints per 100,000", size(medlarge)) 
-             xlabel(-20 "{&le} -20" -15 "-15" -10 "-10" -5 "-5" 0 "0" 5 "5"
-                    10 "10" 20 "20" 30 "30" 40 "{&ge} 40", labsize(medium)));
-    graph export "$GRA/eventdd2_mobility_`v'.eps", replace;
-    #delimit cr		
+    graph export "$OUT/eventdd2_COVIDControls_`v'.eps", replace;
+    #delimit cr	
 }
 
 
@@ -1199,16 +1086,268 @@ foreach v of varlist rate rateSA rateV {
              xlabel(-5 "{&le} -5" -4 "-4" -2 "-2"
                     0 "0" 2 "2" 4 "4" 6 "6" 8 "8" 10 "10" 12 "12" 14 "{&ge} 14",
                     labsize(medlarge)));
-    graph export "$GRA/eventdd_month_open_`v'.eps", replace;
+    graph export "$OUT/eventdd_month_open_`v'.eps", replace;
     #delimit cr
 }
-exit
+
+
+
+*------------------------------------------------------------------------------*
+*--- (5a) Triple difference event study closing
+*------------------------------------------------------------------------------*
+use "$DAT/`data'", clear
+foreach var of varlist privado vulnerable prioritario {
+    bys comuna (month): replace `var'=`var'[_n-1] if `var'==.
+}
+
+keep if year>=2019
+local controls   caseRate pcr positivity quarantine p_comunal_m p_comunal_h privado vulnerable prioritario
+local level      by(month comuna)
+local population Poblacion* populationyoung
+gcollapse (first) `population' (sum) caso* (mean) `controls' SchoolClose, `level'
+
+ren month tm
+gen monthtoclose = tm - tm(2020m3)
+gen mes = month(dofm(tm))
+
+local a1 0 5  
+local a2 4 10 
+tokenize `a2'
+
+foreach age1 of local a1 {
+    local age2 `1'
+    dis "`age1' to `age2'"
+    local caserange
+    local poprange
+    foreach aa of numlist `age1'(1)`age2' {
+        local caserange `caserange' casoEdad`aa'  
+        local poprange  `poprange'  Poblacion`aa' 
+    }
+    egen caso_`age1'_`age2' = rowtotal(`caserange')
+    egen pop_`age1'_`age2'  = rowtotal(`poprange')
+    gen  rate_`age1'_`age2'  = caso_`age1'_`age2'/pop_`age1'_`age2'*100000
+    macro shift
+}
+
+
+
+local r1 rate_5_10  
+local r2 rate_0_4    
+
+local controls caseRate pcr positivity quarantine
+
+gen tripleDiff = (`r1' - `r2')
+
+#delimit ;
+eventdd tripleDif i.mes i.comuna `controls' [aw=populationyoung],
+timevar(monthtoclose) cluster(comuna) lags(10) leads(14) accum
+endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
+ci(rarea, color(gs10%50))
+graph_op(legend(off) xtitle("Calendar Month", size(medlarge)) 
+         ytitle("Criminal Complaints per 100,000", size(medlarge)) 
+         ylabel(#6,format(%9.0f) labsize(medlarge))
+         xlabel(-14 "{&le} Jan 2019" -10 "May 2019" -5 "Oct 2019" 
+                0 "Mar 2020" 5 "Aug 2020" 10 "{&ge} Jan 2021",
+                labsize(medium) angle(15)  ));
+graph export "$OUT/eventdd_controls_DDD_close_`r1'_`r2'.pdf", replace;
+
+eventdd `r1' i.mes i.comuna `controls' [aw=populationyoung],
+timevar(monthtoclose) cluster(comuna) lags(10) leads(14) accum
+endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
+ci(rarea, color(gs10%50))
+graph_op(legend(off) xtitle("Calendar Month", size(medlarge)) 
+         ytitle("Criminal Complaints per 100,000", size(medlarge)) 
+         ylabel(#6,format(%9.0f) labsize(medlarge))
+         xlabel(-14 "{&le} Jan 2019" -10 "May 2019" -5 "Oct 2019" 
+                0 "Mar 2020" 5 "Aug 2020" 10 "{&ge} Jan 2021",
+                labsize(medium) angle(15)));
+graph export "$OUT/eventdd_controls_DD_close_FD1_`r1'.pdf", replace;
+
+eventdd `r2' i.mes i.comuna `controls' [aw=populationyoung],
+timevar(monthtoclose) cluster(comuna) lags(10) leads(14) accum
+endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
+ci(rarea, color(gs10%50))
+graph_op(legend(off) xtitle("Calendar Month", size(medlarge)) 
+         ytitle("Criminal Complaints per 100,000", size(medlarge)) 
+         ylabel(#6,format(%9.0f) labsize(medlarge))
+         xlabel(-14 "{&le} Jan 2019" -10 "May 2019" -5 "Oct 2019" 
+                0 "Mar 2020" 5 "Aug 2020" 10 "{&ge} Jan 2021",
+                labsize(medium) angle(15)));
+graph export "$OUT/eventdd_controls_DD_close_FD2_`r2'.pdf", replace;
+#delimit cr
+drop tripleDif
+
+
+
+
+*------------------------------------------------------------------------------*
+*--- (5b) Triple difference event study (opening)
+*------------------------------------------------------------------------------*
+use "$DAT/`data'", clear
+foreach var of varlist privado vulnerable prioritario {
+    bys comuna (month): replace `var'=`var'[_n-1] if `var'==.
+}
+
+xtset comuna week
+gen timeToClose = week-63
+keep if year>=2019
+drop if timeToClose<0
+
+local controls   caseRate pcr positivity quarantine p_comunal_m p_comunal_h privado vulnerable prioritario
+local level      by(month comuna)
+local population Poblacion* populationyoung
+gcollapse (first) `population' (sum) caso* (mean) `controls' SchoolOpen_i, `level'
+ren month tm
+
+replace SchoolOpen_i=1 if SchoolOpen_i>0
+bys comuna (tm): egen minOpen = min(tm) if SchoolOpen_i==1
+bys comuna: egen openStart = min(minOpen)
+gen timeToOpen = tm-openStart
+gen mes = month(dofm(tm))
+
+local a1 0 5  
+local a2 4 10 
+tokenize `a2'
+
+foreach age1 of local a1 {
+    local age2 `1'
+    dis "`age1' to `age2'"
+    local caserange
+    local poprange
+    foreach aa of numlist `age1'(1)`age2' {
+        local caserange `caserange' casoEdad`aa' 
+        local poprange  `poprange'  Poblacion`aa' 
+    }
+    egen caso_`age1'_`age2' = rowtotal(`caserange')
+    egen pop_`age1'_`age2'  = rowtotal(`poprange')
+    gen  rate_`age1'_`age2'  = caso_`age1'_`age2'/pop_`age1'_`age2'*100000
+    macro shift
+}
+
+
+local r1 rate_5_10  
+local r2 rate_0_4   
+local controls caseRate pcr positivity quarantine  p_comunal_m p_comunal_h privado vulnerable prioritario
+
+gen tripleDiff = (`r1' - `r2')
+#delimit ;
+eventdd tripleDif i.mes i.comuna `controls' [aw=populationyoung],
+timevar(timeToOpen) cluster(comuna) lags(14) leads(10) accum
+endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
+ci(rarea, color(gs10%50))
+graph_op(legend(off) xtitle("Months Relative to Schools Reopening") 
+         ytitle("Criminal Complaints per 100,000")
+         ylabel(-10(5)10,format(%9.0f))
+         xlabel(-10 "{&le} -10" -8 "-8" -6 "-6" -4 "-4" -2 "-2" 
+                0 "0" 2 "2" 4 "4" 6 "6" 8 "8" 10 "10" 12 "12" 14 "{&ge} 14"));
+graph export "$OUT/eventdd_controls_DDD_open_`r1'_`r2'.pdf", replace;
+
+eventdd `r1' i.mes i.comuna `controls' [aw=populationyoung],
+timevar(timeToOpen) cluster(comuna) lags(14) leads(10) accum
+endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
+ci(rarea, color(gs10%50))
+graph_op(legend(off) xtitle("Months Relative to Schools Reopening") 
+         ytitle("Criminal Complaints per 100,000")
+         ylabel(-10(5)10,format(%9.0f))
+         xlabel(-10 "{&le} -10" -8 "-8" -6 "-6" -4 "-4" -2 "-2" 
+                0 "0" 2 "2" 4 "4" 6 "6" 8 "8" 10 "10" 12 "12" 14 "{&ge} 14"));
+graph export "$OUT/eventdd_controls_DD_open_FD1_`r1'.pdf", replace;
+
+eventdd `r2' i.mes i.comuna `controls' [aw=populationyoung],
+timevar(timeToOpen) cluster(comuna) lags(14) leads(10) accum
+endpoints_op(ms(Dh) mc(midblue)) coef_op(ms(Dh) mc(midblue))
+ci(rarea, color(gs10%50))
+graph_op(legend(off) xtitle("Months Relative to Schools Reopening") 
+         ytitle("Criminal Complaints per 100,000")
+         ylabel(-10(5)10,format(%9.0f))
+         xlabel(-10 "{&le} -10" -8 "-8" -6 "-6" -4 "-4" -2 "-2" 
+                0 "0" 2 "2" 4 "4" 6 "6" 8 "8" 10 "10" 12 "12" 14 "{&ge} 14"));
+graph export "$OUT/eventdd_controls_DD_open_FD2_`r2'.pdf", replace;         
+#delimit cr
+drop tripleDif
+
+
+*------------------------------------------------------------------------------*
+*--- (5c) Comparison with DD with controls
+*------------------------------------------------------------------------------*
+use "$DAT/`data'", clear
+foreach var of varlist privado vulnerable prioritario {
+    bys comuna (month): replace `var'=`var'[_n-1] if `var'==.
+}
+keep if year>=2019
+
+local a1 0 5  5
+local a2 4 10 17
+tokenize `a2'
+foreach age1 of local a1 {
+    local age2 `1'
+    dis "`age1' to `age2'"
+    local caserange
+    local poprange
+    foreach aa of numlist `age1'(1)`age2' {
+        local caserange `caserange' casoEdad`aa' 
+        local poprange  `poprange'  Poblacion`aa' 
+    }
+    egen caso_`age1'_`age2' = rowtotal(`caserange')
+    egen pop_`age1'_`age2'  = rowtotal(`poprange')
+    gen  rate_`age1'_`age2'  = caso_`age1'_`age2'/pop_`age1'_`age2'*100000
+    macro shift
+}
+
+local controls   quarantine caseRate pcr positivity  
+
+
+
+local r1s rate_5_10 rate_5_17  
+local r2s rate_0_4  rate_0_4   
+
+tokenize `r2s'
+local depvars SchoolClose2 SchoolOpen_i
+local close SchoolOpen_i
+local open  SchoolClose2
+foreach r1 of local r1s {
+    local r2 `1'
+    gen tripleDiff = (`r1' - `r2')
+
+    eststo: reghdfe `r2' `depvars' [aw=populationyoung], absorb(w comuna) cluster(comuna)
+    eststo: reghdfe `r1' `depvars' [aw=populationyoung], absorb(w comuna) cluster(comuna)
+    local Close0 = _b[`open']
+    local Open0  = _b[`close']
+
+    eststo: reghdfe `r2' `depvars' `controls' [aw=populationyoung], absorb(w comuna) cluster(comuna)
+    eststo: reghdfe `r1' `depvars' `controls' [aw=populationyoung], absorb(w comuna) cluster(comuna)
+    local Close1 = _b[`open']
+    local Open1  = _b[`close']
+    estadd scalar ratioClose = `Close1'/`Close0'
+    estadd scalar ratioOpen  = `Open1'/`Open0'
+
+
+
+    eststo: reghdfe tripleDiff `depvars' `controls' [aw=populationyoung], absorb(w comuna) cluster(comuna)
+    local CloseTD = _b[`open']
+    local OpenTD  = _b[`close']
+    estadd scalar ratioClose = `CloseTD'/`Close1'
+    estadd scalar ratioOpen  = `OpenTD'/`Open1'
+
+    esttab est1 est2 est3 est4 est5, keep(`depvars') stats(N ratioClose ratioOpen)
+    #delimit ;
+    esttab est1 est2 est3 est4 est5 using "$TAB/tripleDiff_`r1'_`r2'.tex", 
+    b(%-9.3f) se(%-9.3f) noobs keep(`depvars') nonotes nogaps mlabels(, none)
+    stats(N ratioClose ratioOpen, fmt(%9.0gc %05.3f %05.3f)
+          label("\\ Observations" "Coefficient Ratio (Close)" "Coefficient Ratio (Open)"))
+    nonumbers style(tex) starlevel ("*" 0.10 "**" 0.05 "***" 0.01) 
+    fragment replace noline label;
+    #delimit cr
+    estimates clear
+    drop tripleDiff
+}
+
+
 
 *-------------------------------------------------------------------------------
-* Figure 2: Heterogeneity
+*  (6) Heterogeneity
 *-------------------------------------------------------------------------------
-use $DAT/`data', clear
-merge m:1 comuna using "$DAT/attendance", gen(_mergeAttend)
+use "$DAT/`data'", clear
 
 *local options
 local cond1 "if year>=2019 [aw=populationyoung]"
@@ -1448,7 +1587,7 @@ twoway  rarea l u orden1, hor color(gs14) fcol(gs14) fi(gs14)
         xlabel(-4(1)1, nogrid format(%9.1f)) xtitle("  ") ytitle("")
         yticks() yline(0, ext lp(solid) lc(gs10))
         legend(order(6 "School Closure" 7 "School Reopening") pos(1) col(2)); 
-graph export "$GRA/SchoolsClose_3_both.eps", replace;
+graph export "$OUT/SchoolsClose_3_both.eps", replace;
 #delimit cr
 
 
@@ -1487,23 +1626,23 @@ twoway  rarea l u orden1, hor color(gs14) fcol(gs14) fi(gs14)
         || scatter orden SA31 if gr==2, mc(blue) msym(O)
         || scatter orden x1 if SA34!=., mlabel(lab) ms(none)
         || scatter orden x2 if SA34!=., mlabel(SA35) ms(none)
-        text(0.7   -4.8 "{bf:Observations (%)}", size(.25cm))
-        text(0.7   -3.5 "{bf:Baseline rate}", size(.25cm))
-        text(-2.9  -5.7 "{bf:Age Group}", size(.22cm))
-        text(-13.9  -5.6 "{bf:Sex}", size(.22cm))
-        text(-18.9 -5.8 "{bf:Development}", size(.22cm))
-        text(-29.9 -5.7 "{bf:Quarantine}", size(.22cm))	
-        text(-41   -0.5 "Change in reporting per 100,000 children", size(.36cm))	
-        ylab(-1  "{bf:Overall}" -4  "   [1-6]"    -6  "   [7-10]"
-             -8  "   [11-13]"   -10  "   [14-15]" -12  "   [16-17]"
-             -15  "Female"      -17 "Male"        -20 "High"
-             -22 "Medium-High"  -24 "Medium"      -26 "Medium-Low"
-             -28 "Low"          -31 "Never"       -33 "Early Quarantine"
-             -35 "Later Quarantine", labsize(vsmall) nogrid) 
-        xlabel(-3(1)2, nogrid format(%9.1f))
-        yticks() yline(0, ext lp(solid) lc(gs10))
-        xtitle("  ") ytitle("") legend(order(6 "School Closure" 7 "School Reopening") pos(1) col(2)); 
-graph export "$GRA/SchoolsClose_3_SA_both.eps", replace;
+    text(0.7   -4.8 "{bf:Observations (%)}", size(.25cm))
+    text(0.7   -3.5 "{bf:Baseline rate}", size(.25cm))
+    text(-2.9  -5.7 "{bf:Age Group}", size(.22cm))
+    text(-13.9  -5.6 "{bf:Sex}", size(.22cm))
+    text(-18.9 -5.8 "{bf:Development}", size(.22cm))
+    text(-29.9 -5.7 "{bf:Quarantine}", size(.22cm))	
+    text(-41   -0.5 "Change in reporting per 100,000 children", size(.36cm))	
+    ylab(-1  "{bf:Overall}" -4  "   [1-6]"    -6  "   [7-10]"
+         -8  "   [11-13]"   -10  "   [14-15]" -12  "   [16-17]"
+         -15  "Female"      -17 "Male"        -20 "High"
+         -22 "Medium-High"  -24 "Medium"      -26 "Medium-Low"
+         -28 "Low"          -31 "Never"       -33 "Early Quarantine"
+         -35 "Later Quarantine", labsize(vsmall) nogrid) 
+    xlabel(-3(1)2, nogrid format(%9.1f))
+    yticks() yline(0, ext lp(solid) lc(gs10))
+    xtitle("  ") ytitle("") legend(order(6 "School Closure" 7 "School Reopening") pos(1) col(2)); 
+graph export "$OUT/SchoolsClose_3_SA_both.eps", replace;
 #delimit cr
 
 
@@ -1542,31 +1681,32 @@ twoway  rarea l u orden1, hor color(gs14) fcol(gs14) fi(gs14)
         || scatter orden R31 if gr==2, mc(blue) msym(O)
         || scatter orden x1 if R34!=., mlabel(lab) ms(none)
         || scatter orden x2 if R34!=., mlabel(R35) ms(none)
-        text(0.7   -1.6 "{bf:Observations (%)}", size(.25cm))
-        text(0.7   -1.2 "{bf:Baseline rate}", size(.25cm))
-        text(-2.9  -1.86 "{bf:Age Group}", size(.22cm))
-        text(-13.9  -1.85 "{bf:Sex}", size(.22cm))
-        text(-18.9 -1.89 "{bf:Development}", size(.22cm))
-        text(-29.9 -1.86 "{bf:Quarantine}", size(.22cm))	
-        text(-41   -0.25 "Change in reporting per 100,000 children", size(.36cm))	
-        ylab(-1  "{bf:Overall}" -4  "   [1-6]"    -6  "   [7-10]"
-             -8  "   [11-13]"   -10  "   [14-15]" -12  "   [16-17]"
-             -15  "Female"      -17 "Male"        -20 "High"
-             -22 "Medium-High"  -24 "Medium"      -26 "Medium-Low"
-             -28 "Low"          -31 "Never"       -33 "Early Quarantine"
-             -35 "Later Quarantine", labsize(vsmall) nogrid)  
-        xlabel(-1(0.5)0.5, nogrid format(%9.1f))
-        yticks() yline(0, ext lp(solid) lc(gs10))
-        xtitle("  ") ytitle("") legend(order(6 "School Closure" 7 "School Reopening") pos(1) col(2)); 
-graph export "$GRA/SchoolsClose_3_R_both.eps", replace;
+    text(0.7   -1.6 "{bf:Observations (%)}", size(.25cm))
+    text(0.7   -1.2 "{bf:Baseline rate}", size(.25cm))
+    text(-2.9  -1.86 "{bf:Age Group}", size(.22cm))
+    text(-13.9  -1.85 "{bf:Sex}", size(.22cm))
+    text(-18.9 -1.89 "{bf:Development}", size(.22cm))
+    text(-29.9 -1.86 "{bf:Quarantine}", size(.22cm))	
+    text(-41   -0.25 "Change in reporting per 100,000 children", size(.36cm))	
+    ylab(-1  "{bf:Overall}" -4  "   [1-6]"    -6  "   [7-10]"
+         -8  "   [11-13]"   -10  "   [14-15]" -12  "   [16-17]"
+         -15  "Female"      -17 "Male"        -20 "High"
+         -22 "Medium-High"  -24 "Medium"      -26 "Medium-Low"
+         -28 "Low"          -31 "Never"       -33 "Early Quarantine"
+         -35 "Later Quarantine", labsize(vsmall) nogrid)  
+    xlabel(-1(0.5)0.5, nogrid format(%9.1f))
+    yticks() yline(0, ext lp(solid) lc(gs10))
+    xtitle("  ") ytitle("") 
+    legend(order(6 "School Closure" 7 "School Reopening") pos(1) col(2)); 
+graph export "$OUT/SchoolsClose_3_R_both.eps", replace;
 #delimit cr
+
 
 
 
 *-------------------------------------------------------------------------------
 *-- (6) Goodman Bacon
 *-------------------------------------------------------------------------------
-/*
 use $DAT/`data', clear
 xtset comuna week
 local cond "if year>=2019 [aw=populationyoung]"
@@ -1575,12 +1715,19 @@ areg rate SchoolClose2 SchoolOpen_i i.w quarantine caseRate pcr positivity `cond
 areg rate SchoolClose2 SchoolOpen_i i.w quarantine caseRate pcr positivity interno2 externo2 `cond', `opt2'
 keep if week<154 & year>=2019
 
+//Updated version of G-B code requires strict increase from 0 to 1
+gen baseTest = week if SchoolOpen_i==1
+bys comuna: egen baseweek = min(baseTest)
+gen SchoolFirstOpen = week>=baseweek
+
 foreach var of varlist rate rateSA rateV {
-    qui xtreg `var' SchoolClose2 SchoolOpen_i i.w, fe cluster(comuna)
-    bacondecomp `var' SchoolOpen_i, ddetail
+    qui xtreg `var' SchoolClose2 SchoolFirstOpen i.w, fe cluster(comuna)
+    bacondecomp `var' SchoolFirstOpen, ddetail
     twowayfeweights `var' comuna w SchoolOpen_i, type(feTR)
-    graph export $GRA/Bacon_`var'.eps, replace
+    graph export $OUT/Bacon_`var'.eps, replace
 }
+exit
 */
+
 
 log close
