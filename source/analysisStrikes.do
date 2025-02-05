@@ -1,7 +1,18 @@
-/* strikes.do                        DP/DC                 yyyy-mm-dd:2024-06-06
+/* analysisStrikes.do                DP/DCC                yyyy-mm-dd:2024-06-06
 ----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
 
-DONE
+This file implements all analysis examining school closures as a result of stud-
+strikes in Chile.  In order to run this file, simply change the location of ROOT 
+on line 27 so that it points to the file where these replication materials are 
+located on your machine.  All results are exported to the results subfolder in 
+replication materials.
+
+Required ados are installed on line 42 of this file.  Versions of these ados used
+in generating replication materials are provided in the compatability sub-folder 
+within the source directory.
+
+For full information regarding replication materials, please refer to the README 
+file in the main directory.
 
 */
 
@@ -20,10 +31,19 @@ global OUT "$ROOT/replication/results/figures/strikes"
 global TAB "$ROOT/replication/results/tables"
 global LOG "$ROOT/replication/log"
 
-set scheme plotplainblind, permanently
+
+// Ensure plotplainblind is avaialble for identical format
+//  can be installed with ssc install blindschemes
+set scheme plotplainblind
 graph set window fontface "Times New Roman"
 
 cap mkdir "$OUT"
+
+// Confirm user written ados are installed or else install
+foreach ado in estout reghdfe {
+    cap which `ado'
+    if _rc!=0 ssc install `ado'
+}
 
 log using "$LOG/analysisStrikes.txt", text replace
 

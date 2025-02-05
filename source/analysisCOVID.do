@@ -1,6 +1,18 @@
-/* AnalysisCOVID.do        DanielPailanir/damiancclarke     yyyy-mm-dd:2021-12-17
+/* analysisCOVID.do        DanielPailanir/damiancclarke     yyyy-mm-dd:2021-12-17
 *----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
 
+This file implements all analysis examining school closures and reopenings relat-
+ed to state responses to COVID in Chile.  In order to run this file, simply chan-
+ge the location of ROOT on line 25 so that it points to the file where these rep-
+lication materials are located on your machine.  All results are exported to the 
+results subfolder in replication materials.
+
+Required ados are installed on line 39 of this file.  Versions of these ados used
+in generating replication materials are provided in the compatability sub-folder 
+within the source directory.
+
+For full information regarding replication materials, please refer to the README 
+file in the main directory.
 
 */
 
@@ -10,7 +22,7 @@ set more off
 *-------------------------------------------------------------------------------
 * (0) Globals and some details
 *-------------------------------------------------------------------------------
-global ROOT "/home/`name'/investigacion/2022/childrenSchools/replication/"
+global ROOT "/home/`c(username)'/investigacion/2022/childrenSchools/replication/"
 
 global DAT "$ROOT/data"
 global OUT "$ROOT/results/figures/covid"
@@ -19,11 +31,21 @@ global LOG "$ROOT/log"
 
 cap mkdir "$OUT"
 
-set scheme plotplainblind, permanently
+// Ensure plotplainblind is avaialble for identical format
+//  can be installed with ssc install blindschemes
+set scheme plotplainblind
 graph set window fontface "Times New Roman"
+
+// Confirm user written ados are installed or else install
+foreach ado in estout eventdd reghdfe schemepack {
+    cap which `ado'
+    if _rc!=0 ssc install `ado'
+}
+
 
 cap log close
 log using "$LOG/analysisCOVID.txt", text replace
+
 
 
 local data SchoolClosure_main.dta
@@ -124,7 +146,6 @@ graph export "$OUT/Rapereport_2lines.eps", replace;
 
 
 restore
-exit
 
 local ccd if monday==22614&Attendance1<1
 local lc lcolor(gs12) fcolor(pink%30)
@@ -1701,33 +1722,6 @@ twoway  rarea l u orden1, hor color(gs14) fcol(gs14) fi(gs14)
 graph export "$OUT/SchoolsClose_3_R_both.eps", replace;
 #delimit cr
 
-
-
-
-*-------------------------------------------------------------------------------
-*-- (6) Goodman Bacon
-*-------------------------------------------------------------------------------
-use $DAT/`data', clear
-xtset comuna week
-local cond "if year>=2019 [aw=populationyoung]"
-local opt2 "cluster(comuna) abs(comuna)"
-areg rate SchoolClose2 SchoolOpen_i i.w quarantine caseRate pcr positivity `cond', `opt2'
-areg rate SchoolClose2 SchoolOpen_i i.w quarantine caseRate pcr positivity interno2 externo2 `cond', `opt2'
-keep if week<154 & year>=2019
-
-//Updated version of G-B code requires strict increase from 0 to 1
-gen baseTest = week if SchoolOpen_i==1
-bys comuna: egen baseweek = min(baseTest)
-gen SchoolFirstOpen = week>=baseweek
-
-foreach var of varlist rate rateSA rateV {
-    qui xtreg `var' SchoolClose2 SchoolFirstOpen i.w, fe cluster(comuna)
-    bacondecomp `var' SchoolFirstOpen, ddetail
-    twowayfeweights `var' comuna w SchoolOpen_i, type(feTR)
-    graph export $OUT/Bacon_`var'.eps, replace
-}
-exit
-*/
 
 
 log close

@@ -1,6 +1,18 @@
 /* analysisVacations.do          damiancclarke             yyyy-mm-dd:2024-09-10
 ----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
 
+This file implements all analysis examining school closures and reopenings as a
+result of regular summer and winter vacations in Chile.  In order to run this f-
+ile, simply change the location of ROOT on line 28 so that it points to the file 
+where these replication materials are located on your machine.  All results are 
+exported to the results subfolder in replication materials.
+
+Required ados are installed on line 38 of this file.  Versions of these ados used
+in generating replication materials are provided in the compatability sub-folder 
+within the source directory.
+
+For full information regarding replication materials, please refer to the README 
+file in the main directory.
 
 */
 
@@ -15,13 +27,19 @@ cap log close
 *-------------------------------------------------------------------------------
 global ROOT "/home/`c(username)'/investigacion/2022/childrenSchools/replication"
 global DAT "$ROOT/data"
-global OUT "$ROOT/results/graphs/vacations"
+global OUT "$ROOT/results/figures/vacations"
 global TAB "$ROOT/results/tables"
 global LOG "$ROOT/log"
 
 cap mkdir "$OUT"
 
 log using "$LOG/analysisVacations.txt", text replace
+
+// Confirm user written ados are installed or else install
+foreach ado in estout reghdfe {
+    cap which `ado'
+    if _rc!=0 ssc install `ado'
+}
 
 *-------------------------------------------------------------------------------
 *--- (1) Open data
@@ -620,6 +638,12 @@ stats(N mean, fmt(%9.0gc %05.3f)
       label("\\ Observations" "Dep.\ Var.\ Mean (Term Time)"))
 nonumbers style(tex) starlevel ("*" 0.10 "**" 0.05 "***" 0.01) 
 fragment replace noline label mlabels(, none);
+
+esttab est1 est2 est3 est4 est5 est6 using "$TAB/vacationsCalc.csv", 
+b(%-9.3f) se(%-9.3f) noobs nonotes nogaps fragment replace noline 
+stats(N mean, fmt(%9.0gc %05.3f) 
+      label("\\ Observations" "Dep. Var. Mean (Term Time)")) label
+nonumbers starlevel ("*" 0.10 "**" 0.05 "***" 0.01) mlabels(, none);
 #delimit cr
 estimates clear
 
