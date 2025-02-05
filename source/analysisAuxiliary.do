@@ -1,7 +1,14 @@
 /* analysisAuxiliary.do          damiancclarke             yyyy-mm-dd:2024-07-01
 ----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
 
+This file generates a number of auxiliary plots presented in appendices of the 
+paper.  In order to run this file, simply change the location of ROOT on line 24 
+so that it points to the file where these replication materials are located on 
+your machine.  All results are exported to the results subfolder in replication 
+materials.
 
+For full information regarding replication materials, please refer to the README 
+file in the main directory.
 
 */
 

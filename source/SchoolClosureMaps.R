@@ -1,11 +1,27 @@
+# SchoolClosureMaps.R            Danial Pailiñir            yyyy-mm-dd:2025-02-04
+#----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
+#
+#This file generates the maps documented in the Appendix Figures in the paper. In 
+# order to run this file, simply change the location of ROOT on line 18 so that it 
+# points to the file where these replication materials are located on your machine.
+# All results are exported to the results subfolder in replication materials.
+#
+#For full information regarding replication materials, please refer to the README 
+# file in the main directory.
+
+
+
 library(ggplot2)
 library(sf)
 library(haven)
 
+ROOT = "/home/damian/investigacion/2022/childrenSchools/replication"
+
 # paths
-path <- "/SchoolClosureViolence/replication/"
-data <- paste(path,"data/", sep = "")
-graphs <- paste(path,"results/graphs", sep = "")
+setwd(ROOT)
+path <- getwd()
+data <- paste(path,"/data/maps", sep = "")
+graphs <- paste(path,"/results/figures/maps/", sep = "")
 
 # import data
 reopening <- read_dta(paste(data,"/Reopening_CH.dta", sep = ""))
@@ -55,7 +71,7 @@ G1 <- ggplot() + geom_sf(data = map1, aes(fill = prop_schools), color = "black")
             axis.ticks = element_blank(),
             axis.title.x = element_blank(),
             axis.title.y = element_blank())
-ggsave(G1, file = paste(graphs,"/Chile.pdf", sep = ""), height = 14, 
+ggsave(G1, file = paste(graphs,"/MCH.pdf", sep = ""), height = 14, 
        width = 17.5, dpi = 350)
 
 # Figure S2: Map of Region Metropolitana
@@ -75,6 +91,6 @@ G2 <-  ggplot() + geom_sf(data = map2, aes(fill = prop_schools), color = "black"
              axis.ticks = element_blank(),
              axis.title.x = element_blank(),
              axis.title.y = element_blank())
-ggsave(G2, file = paste(graphs,"/RM.pdf", sep = ""),height = 17, width = 25, 
+ggsave(G2, file = paste(graphs,"/MRM.pdf", sep = ""),height = 17, width = 25, 
        dpi = 350)
 

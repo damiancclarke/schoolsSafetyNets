@@ -1,7 +1,15 @@
 /* analysisCounterfactual.do         DP/DC                 yyyy-mm-dd:2024-06-06
 ----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
 
-DONE
+This file implements all counterfactual analysis relating to school reopenings 
+following closure during COVID in Chile.  These results are presented in the Ap-
+pendix of the paper only.  In order to run this file, simply change the location 
+of ROOT on line 23 so that it points to the file where these replication materi-
+als are located on your machine.  All results are exported to the results subfo-
+lder in replication materials.
+
+For full information regarding replication materials, please refer to the README 
+file in the main directory.
 
 */
 
